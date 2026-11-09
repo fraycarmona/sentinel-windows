@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+dist/
+.vs/
+app/
+SENTINEL.exe
+*.pdb
+docs/build-results.txt
+docs/host-test-results.txt

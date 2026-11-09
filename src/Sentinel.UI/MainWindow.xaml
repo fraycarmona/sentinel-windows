@@ -1,0 +1,16 @@
+<Window x:Class="Sentinel.UI.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Icon="sentinel.ico" Title="SENTINEL — Estado de protección" Width="680" Height="650" MinWidth="580" MinHeight="580" Background="#101827" Foreground="#F3F6FC" WindowStartupLocation="CenterScreen">
+<Window.Resources><Style TargetType="Button"><Setter Property="Padding" Value="16,10"/><Setter Property="Margin" Value="0,0,10,10"/><Setter Property="Background" Value="#E2E8F0"/><Setter Property="Foreground" Value="#101827"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/></Style></Window.Resources>
+<ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="30">
+<DockPanel><TextBlock Text="SENTINEL" FontSize="30" FontWeight="Bold"/><TextBlock Text="CONTROL DE PROTECCIÓN" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="11"/></DockPanel>
+<Border x:Name="StatusCard" Background="#283345" CornerRadius="12" Padding="22" Margin="0,24,0,16"><StackPanel><TextBlock Text="ESTADO ACTUAL" FontSize="11" Foreground="#CBD5E1"/><TextBlock x:Name="Status" Text="COMPROBANDO…" FontSize="27" FontWeight="SemiBold" Margin="0,8,0,8" TextWrapping="Wrap"/><TextBlock x:Name="Summary" Text="Buscando el motor de protección." TextWrapping="Wrap" FontSize="14"/></StackPanel></Border>
+<TextBlock x:Name="Motor" Text="Motor: comprobando" Margin="0,3" FontSize="16"/>
+<TextBlock x:Name="Dns" Text="DNS: sin verificar" Margin="0,3" FontSize="16"/>
+<TextBlock x:Name="Twitter" Text="Twitter / X: sin verificar" Margin="0,3" FontSize="16"/>
+<TextBlock x:Name="Updated" Text="" Margin="0,10,0,16" Foreground="#94A3B8"/>
+<WrapPanel><Button x:Name="ActivateButton" Content="Instalar y activar DNS" Click="Activate"/><Button Content="Comprobar ahora" Click="Refresh"/></WrapPanel>
+<TextBlock Text="Salir de la protección" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,8"/>
+<TextBlock x:Name="Countdown" Text="No hay solicitud pendiente." TextWrapping="Wrap" Margin="0,0,0,12"/>
+<WrapPanel><Button Content="Solicitar retirada (24 h)" Click="Request"/><Button Content="Cancelar solicitud" Click="Cancel"/><Button x:Name="FinalizeButton" Content="Finalizar retirada" Click="FinalizeRemoval" IsEnabled="False"/></WrapPanel>
+<TextBlock x:Name="Details" TextWrapping="Wrap" Foreground="#CBD5E1" Margin="0,6,0,12"/>
+<Border Background="#1E293B" CornerRadius="8" Padding="14"><TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#CBD5E1" Text="Prototipo · El estado verde verifica el DNS de los adaptadores y el dominio de prueba del proveedor. No garantiza bloquear VPN, proxies o DNS propio del navegador. Cerrar esta ventana no detiene un servicio instalado. La espera cuenta tiempo con el servicio activo."/></Border>
+</StackPanel></ScrollViewer></Window>

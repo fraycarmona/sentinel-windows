@@ -1,0 +1,2 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../Sentinel.Core/Sentinel.Core.csproj"/><PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0"/></ItemGroup></Project>
+

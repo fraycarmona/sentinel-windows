@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><AssemblyName>SENTINEL</AssemblyName><ApplicationIcon>../../assets/sentinel.ico</ApplicationIcon></PropertyGroup><ItemGroup><ProjectReference Include="../Sentinel.Core/Sentinel.Core.csproj"/><Resource Include="../../assets/sentinel.ico" Link="sentinel.ico"/></ItemGroup></Project>

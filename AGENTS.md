@@ -1,0 +1,11 @@
+# SENTINEL
+- Trabajar en español. No declarar seguridad absoluta ni pruebas no ejecutadas.
+- Prototipo de autocontrol para un adulto administrador. Recuperación visible obligatoria.
+- No instalar servicios, cambiar DNS/políticas/firewall o elevar privilegios sin autorización explícita. Primeras integraciones en VM Windows 11 con instantánea.
+- Mantener prueba local en 127.0.0.1/::1:1053 separada del servicio :53.
+- No guardar consultas, URLs ni imágenes. No interceptar TLS ni modificar Defender/UAC/recuperación.
+- Toda mutación del sistema necesita diario previo, restauración idempotente y manejo de conflictos.
+- Compilar con scripts/build.ps1 -Publish; conservar resultados reales en docs.
+- Distinguir DNS ACTIVO (adaptadores y sondeo verificados) de protección integral. Nunca declarar cobertura de VPN/DoH de aplicaciones sin evidencia.
+- No ampliar privilegios de LocalService por comodidad. No copiar código propietario.
+- El 2026-11-09 el propietario autorizó expresamente probar en su PC en lugar de VM. Limitar esa prueba a cambios temporales con restauración; no reiniciar ni dejar protección instalada sin indicarlo.

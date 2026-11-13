@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 param([Parameter(Mandatory)][switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
 if(!$AcceptLabChanges){throw 'Se requiere consentimiento para los cambios en la VM.'}
@@ -11,7 +11,7 @@ if((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name
 if(!(Test-Path "$source/dist/Service/Sentinel.Service.exe")){throw 'Compile con -Publish primero.'}
 New-Item -ItemType Directory $target,$data | Out-Null
 # ACLs by SID avoid localized account names. LocalService runs DNS without elevation.
-& icacls.exe $data /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)M' | Out-Null
+& icacls.exe $data /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F'  | Out-Null
 if($LASTEXITCODE){throw 'No se pudo proteger el directorio de estado'}
 Copy-Item "$source/dist/Service" "$target/Service" -Recurse
 Copy-Item "$source/dist/UI" "$target/UI" -Recurse
@@ -23,13 +23,14 @@ Copy-Item "$source/config/rules.json" "$data/rules.json"
 & sc.exe create Sentinel binPath= ('"'+$target+'\Service\Sentinel.Service.exe"') start= auto obj= 'NT AUTHORITY\LocalService' DisplayName= 'SENTINEL — protección DNS'
 if($LASTEXITCODE){throw 'No se pudo crear el servicio. Conserve los archivos para diagnóstico.'}
 & sc.exe description Sentinel 'Resolvedor DNS voluntario. Recuperación documentada en Program Files\Sentinel\docs.'
-& sc.exe failure Sentinel reset= 86400 actions= restart/10000/restart/30000/none/0
+& sc.exe failure Sentinel reset= 86400 actions= restart/10000/restart/30000/restart/60000
+& "$PSScriptRoot/protect-state.ps1"
 Start-Service Sentinel
 $uninstall='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel'
 if(Test-Path $uninstall){throw 'Existe una entrada de desinstalación ajena; no se sobrescribe.'}
 New-Item $uninstall -Force | Out-Null
 New-ItemProperty $uninstall DisplayName -Value 'SENTINEL - protección DNS' -PropertyType String | Out-Null
-New-ItemProperty $uninstall DisplayVersion -Value '0.3.0' -PropertyType String | Out-Null
+New-ItemProperty $uninstall DisplayVersion -Value '0.5.0' -PropertyType String | Out-Null
 New-ItemProperty $uninstall UninstallString -Value ('"'+$target+'\UI\SENTINEL.exe" --uninstall') -PropertyType String | Out-Null
 New-ItemProperty $uninstall DisplayIcon -Value ($target+'\UI\SENTINEL.exe') -PropertyType String | Out-Null
 New-ItemProperty $uninstall NoModify -Value 1 -PropertyType DWord | Out-Null

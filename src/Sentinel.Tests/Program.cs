@@ -27,4 +27,25 @@ Test("Respuesta A del diagnóstico y truncamiento",()=>{
  Check(DnsProbe.ReadAddresses(b).SequenceEqual(new[]{"0.0.0.0"}));Reject(()=>DnsProbe.ReadAddresses(b[..^1]));
 });
 Test("Fuzz diagnóstico 10000 entradas",()=>{var r=new Random(43);for(int i=0;i<10000;i++){var b=new byte[r.Next(0,600)];r.NextBytes(b);try{DnsProbe.ReadAddresses(b);}catch(InvalidDataException){}}});
+Test("SafeSearch solo nombres exactos y no cuentas",()=>{
+ Check(SafeSearch.Target("www.google.es")=="forcesafesearch.google.com");
+ Check(SafeSearch.Target("accounts.google.com")==null && SafeSearch.Target("mail.google.com")==null && SafeSearch.Target("notgoogle.com")==null);
+ Check(SafeSearch.Target("www.bing.com")=="strict.bing.com" && SafeSearch.Target("www.youtube.com")=="restrict.youtube.com");
+});
+Test("Respuesta SafeSearch filtra familia y no entrega SVCB",()=>{
+ var q=DnsProbe.Query("www.google.com");
+ var ips=new[]{System.Net.IPAddress.Parse("216.239.38.120"),System.Net.IPAddress.Parse("2001:4860::1")};
+ Check(DnsProbe.ReadAddresses(SafeSearch.Answer(q,ips)).SequenceEqual(new[]{"216.239.38.120"}));
+ q[^3]=28;Check(DnsProbe.ReadAddresses(SafeSearch.Answer(q,ips),true).SequenceEqual(new[]{"2001:4860::1"}));
+ q[^3]=65;Check(SafeSearch.Answer(q,ips)[7]==0);
+});
+Test("Pipe ajeno no concede autoridad aunque el servicio real exista",()=>{
+ var name="Sentinel.Test."+Guid.NewGuid();
+ using var server=new System.IO.Pipes.NamedPipeServerStream(name,System.IO.Pipes.PipeDirection.InOut,1,System.IO.Pipes.PipeTransmissionMode.Byte,System.IO.Pipes.PipeOptions.Asynchronous);
+ var connect=server.WaitForConnectionAsync();
+ using var client=new System.IO.Pipes.NamedPipeClientStream(".",name,System.IO.Pipes.PipeDirection.InOut);
+ client.Connect(2000);connect.GetAwaiter().GetResult();
+ bool denied=false;try{PipeIdentity.AssertService(client);}catch(IOException){denied=true;}
+ Check(denied);
+});
 Console.WriteLine($"{passed} pruebas superadas");

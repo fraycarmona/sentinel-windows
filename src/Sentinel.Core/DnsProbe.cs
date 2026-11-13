@@ -10,7 +10,7 @@ public static class DnsProbe {
   foreach(var label in DnsWire.Normalize(name).Split('.')){b.Add((byte)label.Length);b.AddRange(Encoding.ASCII.GetBytes(label));}
   b.AddRange([0,0,1,0,1]);return b.ToArray();
  }
- public static string[] ReadAddresses(byte[] b) {
+ public static string[] ReadAddresses(byte[] b,bool includeIpv6=false) {
   if(b.Length<12 || (b[2]&128)==0 || (b[3]&15)!=0)throw new InvalidDataException();
   int pos=12; var addresses=new List<string>();
   int U16(int p){if(p<0 || p+2>b.Length)throw new InvalidDataException();return BinaryPrimitives.ReadUInt16BigEndian(b.AsSpan(p,2));}
@@ -22,7 +22,7 @@ public static class DnsProbe {
   for(int i=0;i<U16(4);i++){SkipName();pos+=4;if(pos>b.Length)throw new InvalidDataException();}
   for(int i=0;i<U16(6);i++){
    SkipName();if(pos+10>b.Length)throw new InvalidDataException();int type=U16(pos),cls=U16(pos+2),len=U16(pos+8);pos+=10;
-   if(pos+len>b.Length)throw new InvalidDataException();if(type==1 && cls==1 && len==4)addresses.Add(new IPAddress(b.AsSpan(pos,len)).ToString());pos+=len;
+   if(pos+len>b.Length)throw new InvalidDataException();if(cls==1 && ((type==1 && len==4)||(includeIpv6 && type==28 && len==16)))addresses.Add(new IPAddress(b.AsSpan(pos,len)).ToString());pos+=len;
   }
   return addresses.ToArray();
  }

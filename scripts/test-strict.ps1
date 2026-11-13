@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory)][string]$Scratch)
+param([Parameter(Mandatory)][string]$Scratch)
 $ErrorActionPreference='Stop'
 Import-Module "$PSScriptRoot/StrictControl.psm1" -Force
 if(Test-Path -LiteralPath $Scratch){throw 'Use un directorio de pruebas nuevo.'}
@@ -21,18 +21,18 @@ function Fixture {
  }
  return @{State=$state;Backend=$backend;Journal=(Join-Path $Scratch ([guid]::NewGuid().ToString()+'.json'));Rows=@(Get-SentinelBrowserPolicies)}
 }
-Test '13 políticas: incógnito, invitado, proxy directo y DNS del sistema' {
- $r=@(Get-SentinelBrowserPolicies);Check ($r.Count -eq 13)
+Test '18 políticas: incógnito, invitado, proxy directo y DNS del sistema' {
+ $r=@(Get-SentinelBrowserPolicies);Check ($r.Count -eq 18)
  Check (@($r | Where-Object {$_.Name -in @('InPrivateModeAvailability','IncognitoModeAvailability','DisablePrivateBrowsing') -and $_.Value -eq 1}).Count -eq 3)
 }
-Test 'Plan sin efectos de sistema' {Check (@(New-SentinelStrictPlan).Count -eq 13)}
+Test 'Plan sin efectos de sistema' {Check (@(New-SentinelStrictPlan).Count -eq 22)}
 Test 'Retirada denegada antes de 24 h o con respuesta inválida' {
  foreach($s in @($null,[pscustomobject]@{},[pscustomobject]@{Ready=$false},[pscustomobject]@{Ready='true'})){Reject {Assert-SentinelRemovalStatus $s}}
  Assert-SentinelRemovalStatus ([pscustomobject]@{Ready=$true})
 }
 Test 'Aplicar, comprobar y restaurar todas las políticas' {
  $f=Fixture;Invoke-SentinelStrictPlan $f.Rows $f.Journal $f.Backend
- Check ($f.State.Values.Count -eq 13);Check (Test-Path $f.Journal)
+ Check ($f.State.Values.Count -eq 18);Check (Test-Path $f.Journal)
  Undo-SentinelStrictPlan $f.Journal $f.Backend
  Check ($f.State.Values.Count -eq 0);Check (!(Test-Path $f.Journal))
  Undo-SentinelStrictPlan $f.Journal $f.Backend
@@ -81,7 +81,7 @@ Test 'Lectura incorrecta no se declara aplicada' {
 }
 Test 'Regla por ejecutable: ruta exacta y sin duplicados' {
  $exe=Join-Path (Resolve-Path $Scratch).Path 'dummy.exe';[IO.File]::WriteAllText($exe,'test fixture - not executable')
- $p=@(New-SentinelStrictPlan -BlockedPrograms @($exe,$exe));Check ($p.Count -eq 14)
+ $p=@(New-SentinelStrictPlan -BlockedPrograms @($exe,$exe));Check ($p.Count -eq 23)
  Check ($p[-1].Direction -eq 'Outbound' -and $p[-1].Action -eq 'Block' -and $p[-1].Program -eq $exe)
  $f=Fixture;Invoke-SentinelStrictPlan $p $f.Journal $f.Backend;Undo-SentinelStrictPlan $f.Journal $f.Backend
 }
@@ -103,5 +103,14 @@ Test 'Regla de firewall modificada conserva configuración y diario' {
 }
 Test 'Rechaza rutas relativas, UNC, comodines y ejecutables inexistentes' {
  foreach($p in @('browser.exe','\\server\browser.exe','C:\*.exe','C:\missing-sentinel-test.exe')){Reject {New-SentinelStrictPlan -BlockedPrograms $p}}
+}
+Test 'Reglas de red acotadas y diario modificado rechazado' {
+ $p=@(New-SentinelStrictPlan);$f=Fixture
+ Check (@($p | Where-Object Kind -eq NetworkFirewall).Count -eq 4)
+ Invoke-SentinelStrictPlan $p $f.Journal $f.Backend
+ $rows=Get-Content $f.Journal -Raw | ConvertFrom-Json
+ ($rows | Where-Object Kind -eq NetworkFirewall | Select-Object -First 1).RemoteAddress='Any'
+ ConvertTo-Json -InputObject @($rows) -Depth 8 | Set-Content $f.Journal
+ Reject {Undo-SentinelStrictPlan $f.Journal $f.Backend};Check ($f.State.Deletes -eq 0)
 }
 Write-Host "$script:passed pruebas de modo estricto superadas. Backend simulado: no se cambió registro ni firewall."

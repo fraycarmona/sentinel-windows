@@ -1,45 +1,37 @@
-# SENTINEL 0.4 — prototipo para Windows
+# SENTINEL 0.5 — filtro DNS para Windows
 
-Reparación 0.4: [caída 10054, activación existente y recuperación independiente de DNS](docs/repair-0.4.md).
+Servicio LocalService y panel WPF de autocontrol. [Cambios, fuentes y límites de 0.5](docs/release-0.5.md). La aplicación exige **24 horas acumuladas de servicio activo** antes de la retirada normal. Apagar o suspender prolonga esa espera. No ofrece resistencia absoluta contra el administrador de Windows.
 
-Servicio DNS local y panel WPF para autocontrol voluntario. No ofrece protección absoluta ni resistencia frente al administrador del equipo.
+## Ejecutable y arranque
 
-**Nuevo: [modo estricto experimental](docs/strict-mode.md)**. Código para desactivar incógnito, DoH y proxies en Edge/Chrome/Firefox y restringir la red de ejecutables concretos mediante firewall. Diario y restauración con espera integrada. No activado automáticamente ni validado aún con tráfico real. El transporte VPN sigue pendiente; esta versión no promete bloquear todos los navegadores o emuladores.
+Abrir `SENTINEL.exe` conservando las carpetas del paquete. El servicio se configura Automatic, el guardián como tarea SYSTEM al arrancar y la ventana para la sesión del usuario. El arranque normal no pide UAC; instalación, actualización y retirada sí.
 
-## Ejecutable
-En el paquete distribuible, abrir **SENTINEL.exe** desde la raíz, conservando `dist`, `scripts` y `config` junto al ejecutable. Es autocontenido x64 y no requiere instalar .NET.
+Cerrar el panel no detiene el servicio. La parada ordinaria se rechaza antes de completar la espera. El guardián intenta reiniciar el motor, concilia adaptadores físicos DHCP y comprueba el filtrado. La configuración de arranque se distingue de una prueba real de reinicio de Windows.
 
-- **PROTECCIÓN INACTIVA**: no se puede consultar el servicio; abrir la ventana no activa ningún bloqueo.
-- **PROTECCIÓN DEGRADADA**: el motor está ejecutándose, pero no se verifica el DNS del equipo.
-- **FILTRADO DNS ACTIVO**: los adaptadores activos Ethernet/Wi-Fi usan loopback y las consultas de comprobación IPv4/IPv6 pasan. No verifica las rutas privadas de cada aplicación, VPN ni DNS cifrado propio del navegador.
+## Protección y estado
 
-El botón **Instalar y activar DNS** solicita elevación UAC, instala el servicio LocalService y cambia temporalmente durante la instalación los DNS a loopback. Si termina correctamente, el servicio queda instalado y activo hasta retirarlo; cerrar la ventana no lo detiene. Esta versión sólo admite adaptadores físicos activos con DNS automático en ambas familias. Rechaza DNS estático antes de modificarlo.
+- **FILTRADO DNS ACTIVO**: motor y pruebas IPv4/IPv6 correctos; los adaptadores comprobados usan loopback.
+- **PROTECCIÓN DEGRADADA / INACTIVA**: la cobertura local no está verificada. No asumir que abrir el panel activa el filtro.
+- El panel comprueba 18 valores de políticas y el registro de arranque. Eso no demuestra que cada navegador haya cargado las políticas.
 
-Reiniciar el navegador después de activar: páginas en caché o conexiones ya abiertas pueden seguir accesibles. Las pruebas realizadas no garantizan cobertura de todas las páginas ni métodos de evasión.
+Cloudflare Families por HTTPS, reglas locales de Twitter/X y el dominio adulto indicado por el propietario, SafeSearch de Google .com/.es y Bing, YouTube restringido, hosts residual, políticas Edge/Chrome/Firefox, bloqueo de endpoints DNS conocidos y puerto 853.
 
-## Bloqueo incluido
-Cloudflare Families por HTTPS para categorías del proveedor. Reglas locales para `x.com`, `twitter.com`, `twimg.com` y `t.co`, incluidos subdominios. Las reglas se cargan al arrancar el servicio; no se registra historial de consultas. `blocked.test` se reserva para tests locales.
+No hay bloqueo universal de DoH/VPN/proxy, navegadores portables, Comet o emuladores, ni análisis de imágenes dentro de plataformas permitidas. Hosts sólo cubre nombres exactos y www. El respaldo filtrado de categoría mantiene conectividad si pasa las pruebas, pero no reescribe SafeSearch como el motor local.
 
-## Pruebas reales
-17 tests de núcleo superados, incluyendo dos lotes de 10 000 entradas aleatorias. Demo UDP/TCP × IPv4/IPv6 comprobada. En el PC autorizado: servicio LocalService, persistencia tras reinicio del servicio, cambio DNS, restauración exacta y retirada verificados. En Comet: Twitter bloqueado; dominio oficial de filtro adulto bloqueado en una ventana nueva de incógnito; sitio permitido accesible. Una página abierta antes del cambio siguió accesible en la ventana normal.
+## Instalar o actualizar
 
-Se encontró y corrigió un fallo de restauración de arrays JSON en Windows PowerShell 5.1. No se oculta el incidente: [informe actualizado](docs/release-0.2.md).
+Usar el botón de activación del paquete. Actualizaciones conservan reglas y espera. Para una comprobación administrativa detallada: `scripts/upgrade-verify.ps1 -Evidence <carpeta-local>`.
 
-## Compilar
-SDK .NET 10 x64 + PowerShell: `./scripts/build.ps1 -Publish`.
-Para generar el ejecutable único de la interfaz: `./scripts/publish-ui.ps1`.
-Para probar sin cambiar DNS: `./scripts/demo.ps1`, seguido de `./dist/UI/SENTINEL.exe --demo`.
+Se admiten adaptadores físicos activos con DNS automático. Configuraciones estáticas, personalizadas o en conflicto se rechazan sin sobrescribirlas. Reiniciar navegadores después de aplicar políticas; páginas almacenadas y conexiones abiertas pueden continuar.
 
 ## Retirada y recuperación
-Solicitar retirada en la interfaz. Tras **24 horas acumuladas de servicio activo**, usar Finalizar retirada o ejecutar `scripts/remove-lab.ps1 -AcceptLabChanges` como administrador. No son todavía 24 horas naturales: apagado y suspensión prolongan la espera.
 
-El instalador registra el servicio con inicio automático, el panel al iniciar sesión y una entrada en Aplicaciones instaladas que abre la solicitud de retirada. El arranque normal no solicita UAC; la instalación y retirada sí. El reinicio completo y el flujo de Aplicaciones instaladas siguen pendientes de prueba.
+Solicitar retirada en la interfaz; tras 24 horas acumuladas, usar **Finalizar retirada**. Todos los flujos normales de restauración de DNS, hosts y políticas consultan el servicio autenticado. No se confía en el reloj civil para adelantar la espera.
 
-Recuperación excepcional: `scripts/remove-lab.ps1 -Emergency -AcceptLabChanges` como administrador. Restaura antes de detener el resolvedor y conserva datos para diagnóstico. Véase [recuperación](docs/recovery.md).
+La [recuperación administrativa excepcional](docs/recovery.md) permanece documentada para no bloquear permanentemente el PC. Tener administración total permite eludir controles locales: no se promete que esperar sea la única salida posible para un administrador.
 
-## Pendiente antes de producto final
-La [investigación de evasión por DNS cifrado, VPN y proxy](docs/anti-evasion-research.md) define las medidas y pruebas. El [estado de implementación 0.3](docs/strict-mode.md) distingue el código añadido de las capas todavía pendientes.
+## Compilar y verificar
 
-WFP/firewall, reconciliación de nuevos adaptadores, políticas verificadas en todos los navegadores, bloqueo universal de DoH/VPN, instalador de producción firmado con retirada integrada, actualización segura y pruebas de reinicio completo de Windows. El proyecto Inno es un empaquetador de laboratorio, no ese instalador de producción.
+SDK .NET 10 x64 y PowerShell. `scripts/build.ps1 -Publish`, después `scripts/publish-ui.ps1`. Las pruebas de integración de laboratorio usan exclusivamente el puerto 1053 y un directorio nuevo; el servicio instalado usa 53.
 
-Código: `src/Sentinel.Core`, `src/Sentinel.Service`, `src/Sentinel.UI`, `src/Sentinel.Tests`. Documentación histórica de diseño en `docs`; el estado vigente está en `docs/release-0.3.md`.
+Ver [informe 0.5](docs/release-0.5.md) para pruebas ejecutadas y pendientes. El [informe de auditoría](docs/audit-2026-11-13.md) describe la base 0.4, no el estado posterior a esta actualización.

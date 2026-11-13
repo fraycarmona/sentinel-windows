@@ -1,4 +1,4 @@
-﻿param([ValidateSet('Plan','Apply','Restore','Status')][string]$Mode='Plan',[string[]]$BlockedPrograms=@(),[switch]$Emergency,[switch]$AcceptLabChanges)
+param([ValidateSet('Plan','Apply','Restore','Status')][string]$Mode='Plan',[string[]]$BlockedPrograms=@(),[switch]$Emergency,[switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
 if(![Environment]::Is64BitProcess){throw 'Ejecute PowerShell de 64 bits.'}
 Import-Module "$PSScriptRoot/StrictControl.psm1" -Force
@@ -33,7 +33,7 @@ try{
  if(Test-Path (Join-Path $data 'browser-backup.json')){throw 'Existen políticas de laboratorio previas; no se mezclan diarios.'}
  # A pre-existing InPrivate allowlist overrides the Edge disable policy.
  if(Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\InPrivateModeUrlAllowlist'){throw 'Existe una excepción InPrivate previa; requiere revisión.'}
- if(@($BlockedPrograms).Count){
+ & {
   $profiles=@(Get-NetFirewallProfile -PolicyStore ActiveStore)
   if($profiles.Count -ne 3 -or @($profiles | Where-Object {$_.Enabled -ne 'True' -or $_.AllowLocalFirewallRules -eq 'False'}).Count){throw 'Firewall desactivado o políticas locales no admitidas; no se cambia su configuración global.'}
  }

@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 
 function Get-SentinelBrowserPolicies {
@@ -6,10 +6,11 @@ function Get-SentinelBrowserPolicies {
  foreach($browser in 'Edge','Chrome'){
   $path=if($browser -eq 'Edge'){'SOFTWARE\Policies\Microsoft\Edge'}else{'SOFTWARE\Policies\Google\Chrome'}
   $private=if($browser -eq 'Edge'){'InPrivateModeAvailability'}else{'IncognitoModeAvailability'}
-  foreach($entry in @(@('DnsOverHttpsMode','off','String'),@('ProxySettings','{"ProxyMode":"direct"}','String'),@($private,1,'DWord'),@('BrowserGuestModeEnabled',0,'DWord'))){
+  foreach($entry in @(@('DnsOverHttpsMode','off','String'),@('ProxySettings','{"ProxyMode":"direct"}','String'),@($private,1,'DWord'),@('BrowserGuestModeEnabled',0,'DWord'),@('ForceGoogleSafeSearch',1,'DWord'),@('ForceYouTubeRestrict',2,'DWord'))){
    $rows += [pscustomobject]@{Kind='Registry';Path=$path;Name=$entry[0];Value=$entry[1];Type=$entry[2]}
   }
  }
+ $rows += [pscustomobject]@{Kind='Registry';Path='SOFTWARE\Policies\Microsoft\Edge';Name='ForceBingSafeSearch';Value=2;Type='DWord'}
  $base='SOFTWARE\Policies\Mozilla\Firefox'
  foreach($entry in @(@('DNSOverHTTPS','Enabled',0,'DWord'),@('DNSOverHTTPS','Locked',1,'DWord'),@('Proxy','Mode','none','String'),@('Proxy','Locked',1,'DWord'),@('','DisablePrivateBrowsing',1,'DWord'))){
   $path=if($entry[0]){$base+'\'+$entry[0]}else{$base}
@@ -18,9 +19,19 @@ function Get-SentinelBrowserPolicies {
  return $rows
 }
 
+function Get-SentinelNetworkRules {
+ # Known public resolver endpoints only; this is not a universal DoH/VPN block.
+ $known='1.0.0.1,1.1.1.1,8.8.4.4,8.8.8.8,9.9.9.9,149.112.112.112,2001:4860:4860::8844,2001:4860:4860::8888,2606:4700:4700::1001,2606:4700:4700::1111'
+ foreach($protocol in 'TCP','UDP'){
+  foreach($scope in 'KnownResolver','EncryptedDns'){
+   [pscustomobject]@{Kind='NetworkFirewall';Name=('Sentinel.Network.'+$scope+'.'+$protocol);Program='Any';Group='SENTINEL Strict';Direction='Outbound';Action='Block';Enabled='True';Profile='Any';Protocol=$protocol;LocalPort='Any';RemotePort=$(if($scope -eq 'KnownResolver'){'53,443'}else{'853'});LocalAddress='Any';RemoteAddress=$(if($scope -eq 'KnownResolver'){$known}else{'Any'})}
+  }
+ }
+}
+
 function New-SentinelStrictPlan {
  param([string[]]$BlockedPrograms=@())
- $rows=@(Get-SentinelBrowserPolicies)
+ $rows=@(Get-SentinelBrowserPolicies)+@(Get-SentinelNetworkRules)
  $seen=@{}
  foreach($program in $BlockedPrograms){
   if($program -notmatch '^[A-Za-z]:\\' -or $program -match '[*?%"\r\n]' -or [IO.Path]::GetExtension($program) -ine '.exe'){throw 'Indique rutas locales absolutas a ejecutables, sin variables ni comodines.'}
@@ -44,7 +55,10 @@ function Assert-SentinelRemovalReady {
  $pipe=[IO.Pipes.NamedPipeClientStream]::new('.','Sentinel.Control',[IO.Pipes.PipeDirection]::InOut,[IO.Pipes.PipeOptions]::Asynchronous)
  $reader=$null
  try{
-  $pipe.Connect(3000);$pipe.WriteByte(0);$reader=[IO.StreamReader]::new($pipe)
+  $pipe.Connect(3000);
+  if(-not ('Sentinel.Core.PipeIdentity' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'PipeIdentity.cs')}
+  [Sentinel.Core.PipeIdentity]::AssertService($pipe)
+  $pipe.WriteByte(0);$reader=[IO.StreamReader]::new($pipe)
   $task=$reader.ReadToEndAsync()
   if(!$task.Wait(3000)){throw 'El servicio no respondió a tiempo; retirada denegada.'}
   Assert-SentinelRemovalStatus ($task.Result | ConvertFrom-Json)
@@ -58,7 +72,7 @@ function Save-SentinelJournal {
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes($json)
  $stream=[IO.File]::Open($temp,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::None)
  try{$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
- if(Test-Path -LiteralPath $Path){[IO.File]::Replace($temp,$Path,[NullString]::Value)}else{[IO.File]::Move($temp,$Path)}
+ if(Test-Path -LiteralPath $Path){for($attempt=0;;$attempt++){try{[IO.File]::Replace($temp,$Path,[NullString]::Value);break}catch [IO.IOException]{if($attempt -ge 6){throw};Start-Sleep -Milliseconds 60}}}else{[IO.File]::Move($temp,$Path)}
 }
 
 function Test-SentinelValueEqual {
@@ -67,7 +81,9 @@ function Test-SentinelValueEqual {
  foreach($property in $Expected.PSObject.Properties){
   if($property.Name -eq 'State'){continue}
   if(!($Actual.PSObject.Properties.Name -contains $property.Name)){return $false}
-  if([string]$Actual.($property.Name) -cne [string]$property.Value){return $false}
+  if($property.Name -in @('RemotePort','RemoteAddress')){
+   if((@(([string]$Actual.($property.Name)) -split ',' | Sort-Object) -join ',') -cne (@(([string]$property.Value) -split ',' | Sort-Object) -join ',')){return $false}
+  }elseif([string]$Actual.($property.Name) -cne [string]$property.Value){return $false}
  }
  return $true
 }
@@ -83,6 +99,10 @@ function Assert-SentinelJournalRows {
    $match=@($catalog | Where-Object {$_.Path -ceq $r.Path -and $_.Name -ceq $r.Name})
    if($match.Count -ne 1 -or !(Test-SentinelValueEqual $r $match[0])){throw 'Política de diario desconocida o alterada.'}
    $id=$r.Path+'/'+$r.Name
+  }elseif($r.Kind -eq 'NetworkFirewall'){
+   $match=@(Get-SentinelNetworkRules | Where-Object Name -ceq $r.Name)
+   if($match.Count -ne 1 -or !(Test-SentinelValueEqual $r $match[0])){throw 'Regla de red desconocida o alterada.'}
+   $id=$r.Name
   }elseif($r.Kind -eq 'Firewall'){
    if($r.Name -notmatch '^Sentinel\.Strict\.[0-9a-f]{32}$' -or $r.Program -notmatch '^[A-Za-z]:\\' -or $r.Program -match '[*?%"\r\n]' -or [IO.Path]::GetExtension($r.Program) -ine '.exe' -or $r.Group -cne 'SENTINEL Strict' -or $r.Direction -cne 'Outbound' -or $r.Action -cne 'Block' -or $r.Enabled -cne 'True' -or $r.Profile -cne 'Any' -or $r.Protocol -cne 'Any' -or $r.LocalPort -cne 'Any' -or $r.RemotePort -cne 'Any' -or $r.LocalAddress -cne 'Any' -or $r.RemoteAddress -cne 'Any'){throw 'Regla de diario desconocida o alterada.'}
    $id=$r.Name
@@ -153,14 +173,14 @@ function New-SentinelWindowsBackend {
     $app=$rule | Get-NetFirewallApplicationFilter
     $ports=$rule | Get-NetFirewallPortFilter
     $addresses=$rule | Get-NetFirewallAddressFilter
-    [pscustomobject]@{Kind='Firewall';Name=$rule.Name;Program=$app.Program;Group=$rule.Group;Direction=$rule.Direction.ToString();Action=$rule.Action.ToString();Enabled=$rule.Enabled.ToString();Profile=$rule.Profile.ToString();Protocol=[string]$ports.Protocol;LocalPort=($ports.LocalPort -join ',');RemotePort=($ports.RemotePort -join ',');LocalAddress=($addresses.LocalAddress -join ',');RemoteAddress=($addresses.RemoteAddress -join ',')}
+    [pscustomobject]@{Kind=$r.Kind;Name=$rule.Name;Program=$app.Program;Group=$rule.Group;Direction=$rule.Direction.ToString();Action=$rule.Action.ToString();Enabled=$rule.Enabled.ToString();Profile=$rule.Profile.ToString();Protocol=[string]$ports.Protocol;LocalPort=($ports.LocalPort -join ',');RemotePort=($ports.RemotePort -join ',');LocalAddress=($addresses.LocalAddress -join ',');RemoteAddress=($addresses.RemoteAddress -join ',')}
    }
   }
   Write={param($r)
    if($r.Kind -eq 'Registry'){
     $hive=[Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine','Registry64');$key=$null
     try{$key=$hive.CreateSubKey($r.Path);$key.SetValue($r.Name,$r.Value,[Enum]::Parse([Microsoft.Win32.RegistryValueKind],$r.Type))}finally{if($key){$key.Dispose()};$hive.Dispose()}
-   }else{New-NetFirewallRule -PolicyStore PersistentStore -Name $r.Name -DisplayName 'SENTINEL: aplicación restringida' -Group $r.Group -Direction Outbound -Action Block -Program $r.Program -Profile Any -Enabled True -Protocol Any | Out-Null
+   }else{New-NetFirewallRule -PolicyStore PersistentStore -Name $r.Name -DisplayName 'SENTINEL: aplicación restringida' -Group $r.Group -Direction Outbound -Action Block -Program $r.Program -Profile Any -Enabled True -Protocol $r.Protocol -RemotePort @($r.RemotePort -split ',') -RemoteAddress @($r.RemoteAddress -split ',') | Out-Null
     if(!(Get-NetFirewallRule -PolicyStore ActiveStore -Name $r.Name -ErrorAction SilentlyContinue)){throw 'La regla no aparece en la política efectiva del firewall.'}
    }
   }
@@ -173,4 +193,4 @@ function New-SentinelWindowsBackend {
  }
 }
 
-Export-ModuleMember -Function Get-SentinelBrowserPolicies,New-SentinelStrictPlan,Assert-SentinelRemovalStatus,Assert-SentinelRemovalReady,Test-SentinelValueEqual,Assert-SentinelJournalRows,Invoke-SentinelStrictPlan,Undo-SentinelStrictPlan,New-SentinelWindowsBackend
+Export-ModuleMember -Function Get-SentinelNetworkRules,Get-SentinelBrowserPolicies,New-SentinelStrictPlan,Assert-SentinelRemovalStatus,Assert-SentinelRemovalReady,Test-SentinelValueEqual,Assert-SentinelJournalRows,Invoke-SentinelStrictPlan,Undo-SentinelStrictPlan,New-SentinelWindowsBackend

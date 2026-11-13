@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory)][string]$Data)
+param([Parameter(Mandatory)][string]$Data)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot
 if(Test-Path $Data){throw 'Use un directorio nuevo para no alterar un estado existente.'}
@@ -28,6 +28,8 @@ try{
  'PASS pipe y arranque de demo'
  python "$root/scripts/dns-smoke.py"
  if($LASTEXITCODE){throw 'Falló DNS smoke'}
+ python "$root/scripts/dns-hardening-test.py"
+ if($LASTEXITCODE){throw 'Falló prueba de endurecimiento DNS'}
  $request=Control 1
  if($request.Ready -or $request.Remaining -gt 86400 -or $request.Remaining -lt 86390){throw 'Espera inicial incorrecta'}
  Start-Sleep -Seconds 3

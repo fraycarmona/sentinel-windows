@@ -1,9 +1,13 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 param([switch]$Emergency,[Parameter(Mandatory)][switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
 if(!$AcceptLabChanges){throw 'Confirmación requerida'}
 Import-Module "$PSScriptRoot/StrictControl.psm1" -Force
 if(!$Emergency){Assert-SentinelRemovalReady}
+Import-Module "$PSScriptRoot/Maintenance.psm1" -Force
+$lease=Enter-SentinelMaintenance
+try{
+& "$PSScriptRoot/hosts-lab.ps1" -Mode Restore -Emergency:$Emergency
 if(Test-Path (Join-Path $env:ProgramData 'Sentinel/strict-backup.json')){
  & "$PSScriptRoot/strict-lab.ps1" -Mode Restore -Emergency:$Emergency -AcceptLabChanges
 }
@@ -22,3 +26,5 @@ if((Get-ItemProperty $run -Name Sentinel -ErrorAction SilentlyContinue).Sentinel
 $uninstall='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel'
 if((Get-ItemProperty $uninstall -Name UninstallString -ErrorAction SilentlyContinue).UninstallString -eq ('"'+$target+'\UI\SENTINEL.exe" --uninstall')){Remove-Item -LiteralPath $uninstall}
 Write-Host 'Servicio retirado; copia y estado conservados para diagnóstico. Puede eliminar Program Files\Sentinel y ProgramData\Sentinel tras verificar la conectividad.'
+
+}finally{$lease.Dispose()}

@@ -10,7 +10,8 @@ namespace Sentinel.Service;
 public sealed class Engine {
  readonly string dir; readonly int port; readonly bool demo;
  readonly LockStore store; readonly object gate=new(); LockState? state; string? stateError;
- readonly SemaphoreSlim slots=new(64); readonly HttpClient http=new(new SocketsHttpHandler {
+ // Slow TCP clients cannot consume the UDP budget used by Windows and health probes.
+ readonly SemaphoreSlim udpSlots=new(48),tcpSlots=new(16); readonly HttpClient http=new(new SocketsHttpHandler {
   UseProxy=false,
   ConnectCallback=async (context,ct)=>{
    // Bootstrap by fixed provider IP, retaining HTTPS SNI and normal certificate validation.
@@ -24,7 +25,9 @@ public sealed class Engine {
   }
  }){Timeout=TimeSpan.FromSeconds(6)};
  DomainRules rules=new([],[]); long blocked,failures; DateTimeOffset? lastDns;
- public Engine(string dir,int port,bool demo){this.dir=dir;this.port=port;this.demo=demo;store=new(Path.Combine(dir,"lock.json"));}
+ readonly DateTimeOffset started=DateTimeOffset.UtcNow;
+ public bool RemovalReady {get{lock(gate)return stateError is null && state?.Ready==true;}}
+ public Engine(string dir,int port,bool demo){this.dir=dir;this.port=port;this.demo=demo;store=new(Path.Combine(dir,demo?"lock.json":"runtime/lock.json"));}
  public async Task Run(CancellationToken ct) {
   try {state=store.Read();} catch(Exception e) when(e is IOException or JsonException){stateError="Estado de espera dañado: recuperación necesaria";}
   var r=JsonSerializer.Deserialize<RulesConfig>(File.ReadAllText(Path.Combine(dir,"rules.json"))) ?? throw new InvalidDataException();
@@ -43,6 +46,18 @@ public sealed class Engine {
  async Task<byte[]> Resolve(byte[] q,CancellationToken ct) {
   string host=DnsWire.Question(q);
   if(rules.Blocks(host)){Interlocked.Increment(ref blocked);return DnsWire.Error(q,3);}
+  var safe=SafeSearch.Target(host);
+  if(safe is not null){
+   var question=DnsWire.Error(q,0);int type=(question[^4]<<8)|question[^3];
+   if(type is not (1 or 28))return SafeSearch.Answer(q,[]);
+   var mapped=DnsProbe.Query(safe);mapped[^4]=(byte)(type>>8);mapped[^3]=(byte)type;
+   var reply=await Upstream(mapped,ct);
+   if((reply[3]&15)!=0)return DnsWire.Error(q,2);
+   return SafeSearch.Answer(q,DnsProbe.ReadAddresses(reply,true).Select(IPAddress.Parse));
+  }
+  return await Upstream(q,ct);
+ }
+ async Task<byte[]> Upstream(byte[] q,CancellationToken ct) {
   try {
    using var req=new HttpRequestMessage(HttpMethod.Post,"https://family.cloudflare-dns.com/dns-query");
    req.Content=new ByteArrayContent(q);req.Content.Headers.ContentType=new("application/dns-message");
@@ -62,35 +77,35 @@ public sealed class Engine {
    // Windows reports ICMP port-unreachable from an earlier DNS reply here.
    // A client closing its socket must not terminate the shared DNS listener.
    catch(SocketException e) when(e.SocketErrorCode==SocketError.ConnectionReset){continue;}
-   if(!slots.Wait(0))continue;
-   _=Handle(); async Task Handle(){try{var b=await Resolve(packet.Buffer,ct); if(b.Length>512)b=Truncate(packet.Buffer);await udp.SendAsync(b,packet.RemoteEndPoint,ct);}catch(Exception e) when(e is IOException or SocketException or OperationCanceledException or ObjectDisposedException){}finally{slots.Release();}}
+   if(!udpSlots.Wait(0))continue;
+   _=Handle(); async Task Handle(){try{var b=await Resolve(packet.Buffer,ct); if(b.Length>512)b=Truncate(packet.Buffer);await udp.SendAsync(b,packet.RemoteEndPoint,ct);}catch(Exception e) when(e is IOException or SocketException or OperationCanceledException or ObjectDisposedException){}finally{udpSlots.Release();}}
   }
  }
  static byte[] Truncate(byte[] q){var b=DnsWire.Error(q,0);b[2]|=2;return b;}
  async Task Tcp(IPAddress ip,CancellationToken ct){
   var listener=new TcpListener(ip,port);listener.Start(64);
-  try{while(!ct.IsCancellationRequested){var client=await listener.AcceptTcpClientAsync(ct);if(!slots.Wait(0)){client.Dispose();continue;}_=Handle();
+  try{while(!ct.IsCancellationRequested){var client=await listener.AcceptTcpClientAsync(ct);if(!tcpSlots.Wait(0)){client.Dispose();continue;}_=Handle();
    async Task Handle(){using(client)using(var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct)){timeout.CancelAfter(TimeSpan.FromSeconds(10));
     try{var s=client.GetStream();byte[] size=new byte[2];await s.ReadExactlyAsync(size,timeout.Token);int n=(size[0]<<8)|size[1];if(n<17 || n>4096)return;
      byte[] q=new byte[n];await s.ReadExactlyAsync(q,timeout.Token);var b=await Resolve(q,timeout.Token);await s.WriteAsync(new byte[]{(byte)(b.Length>>8),(byte)b.Length},timeout.Token);await s.WriteAsync(b,timeout.Token);
-    }catch(Exception e) when(e is IOException or SocketException or OperationCanceledException){}finally{slots.Release();}}}
+    }catch(Exception e) when(e is IOException or SocketException or OperationCanceledException){}finally{tcpSlots.Release();}}}
   }}finally{listener.Stop();}
  }
  async Task Pipe(CancellationToken ct){
   string owner=File.ReadAllText(Path.Combine(dir,"owner.txt")).Trim();
   var security=new PipeSecurity();security.AddAccessRule(new(new SecurityIdentifier(owner),PipeAccessRights.ReadWrite,AccessControlType.Allow));
   security.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.LocalSystemSid,null),PipeAccessRights.FullControl,AccessControlType.Allow));
-  security.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.LocalServiceSid,null),PipeAccessRights.FullControl,AccessControlType.Allow));
+  if(!demo)security.AddAccessRule(new((SecurityIdentifier)new NTAccount("NT SERVICE","Sentinel").Translate(typeof(SecurityIdentifier)),PipeAccessRights.FullControl,AccessControlType.Allow));
   security.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid,null),PipeAccessRights.ReadWrite,AccessControlType.Allow));
   security.AddAccessRule(new(new SecurityIdentifier(WellKnownSidType.NetworkSid,null),PipeAccessRights.FullControl,AccessControlType.Deny));
   while(!ct.IsCancellationRequested){
-   using var pipe=NamedPipeServerStreamAcl.Create(demo?"Sentinel.Demo":"Sentinel.Control",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous,4096,4096,security);
+   using var pipe=NamedPipeServerStreamAcl.Create(demo?"Sentinel.Demo":"Sentinel.Control",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|(PipeOptions)0x00080000,4096,4096,security);
    await pipe.WaitForConnectionAsync(ct);using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(3000);
    try{var command=new byte[1];await pipe.ReadExactlyAsync(command,timeout.Token);string json;
     lock(gate){
      if(command[0]==1 && stateError is null && state is null){state=LockState.Request(DateTimeOffset.UtcNow);store.Save(state);}
      if(command[0]==2 && stateError is null){store.Save(null);state=null;}
-     json=JsonSerializer.Serialize(new {Protection="DEGRADADA", Service="EN EJECUCIÓN", Demo=demo, StrictJournalPresent=File.Exists(Path.Combine(dir,"strict-backup.json")), TwitterBlocked=rules.Blocks("x.com") && rules.Blocks("twitter.com") && rules.Blocks("twimg.com") && rules.Blocks("t.co"), Dns=lastDns, Blocked=Interlocked.Read(ref blocked), Failures=Interlocked.Read(ref failures), Remaining=state?.RemainingSeconds, Ready=stateError is null && state?.Ready==true, Error=stateError, Scope=demo?"Prueba local :1053; no protege el equipo":"Cobertura DNS; no garantiza bloqueo de VPN, proxies o DNS propio del navegador"});
+     json=JsonSerializer.Serialize(new {Version="0.5.0", StartedUtc=started, SafeSearch=true, Protection="DEGRADADA", Service="EN EJECUCIÓN", Demo=demo, StrictJournalPresent=File.Exists(Path.Combine(dir,"strict-backup.json")), TwitterBlocked=rules.Blocks("x.com") && rules.Blocks("twitter.com") && rules.Blocks("twimg.com") && rules.Blocks("t.co"), Dns=lastDns, Blocked=Interlocked.Read(ref blocked), Failures=Interlocked.Read(ref failures), Remaining=state?.RemainingSeconds, Ready=stateError is null && state?.Ready==true, Error=stateError, Scope=demo?"Prueba local :1053; no protege el equipo":"Cobertura DNS; no garantiza bloqueo de VPN, proxies o DNS propio del navegador"});
     }
     await pipe.WriteAsync(System.Text.Encoding.UTF8.GetBytes(json),timeout.Token);
    }catch(Exception e) when(e is IOException or OperationCanceledException){ }

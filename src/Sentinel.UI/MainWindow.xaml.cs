@@ -49,11 +49,10 @@ public partial class MainWindow:Window {
  async Task Update(byte command){if(busy)return;busy=true;
   try{
    using var timeout=new CancellationTokenSource(2500);using var pipe=new NamedPipeClientStream(".",demo?"Sentinel.Demo":"Sentinel.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
-   await pipe.ConnectAsync(timeout.Token);await pipe.WriteAsync(new[]{command},timeout.Token);using var reader=new StreamReader(pipe);string json=await reader.ReadToEndAsync(timeout.Token);using var doc=JsonDocument.Parse(json);var d=doc.RootElement;
+   await pipe.ConnectAsync(timeout.Token);if(!demo)PipeIdentity.AssertService(pipe);await pipe.WriteAsync(new[]{command},timeout.Token);using var reader=new StreamReader(pipe);string json=await reader.ReadToEndAsync(timeout.Token);using var doc=JsonDocument.Parse(json);var d=doc.RootElement;
    Motor.Text="Motor: EN EJECUCIÓN";
-   Strict.Text=d.TryGetProperty("StrictJournalPresent",out var strictJournal)
-    ?(strictJournal.GetBoolean()?"Controles anti-evasión: diario detectado; aplicación completa y eficacia NO verificadas.":"Controles anti-evasión: modo estricto NO configurado. VPN no implementada.")
-    :"Controles anti-evasión: el motor instalado no informa de esta capa; sin verificar.";
+   var policy=BrowserPolicies.Check();
+   Strict.Text=$"Navegadores: {policy.Matching}/{policy.Total} ajustes comprobados. Reinicie los navegadores tras instalar.\nInicio automático: {(BrowserPolicies.AutomaticStart()?"configurado":"NO configurado")}. Cobertura de VPN/proxy: parcial.";
    FinalizeButton.IsEnabled=d.GetProperty("Ready").GetBoolean();
    if(DateTimeOffset.UtcNow-healthTime>TimeSpan.FromSeconds(30)){
     try{using var check=new CancellationTokenSource(12000);healthy=await DnsProbe.Check(IPAddress.Loopback,demo?1053:53,check.Token) && await DnsProbe.Check(IPAddress.IPv6Loopback,demo?1053:53,check.Token);}

@@ -44,8 +44,9 @@ Fuentes de plataforma: [SafeSearch administrado de Google](https://support.googl
 
 ### Estado de pruebas de equipo
 
-Las pruebas de laboratorio anteriores se ejecutaron satisfactoriamente el 2026-11-13. La actualización administrativa quedó **activa** con el motor nuevo. La prueba de reinicio real sigue pendiente hasta observar un arranque nuevo. **Una configuración Automatic no es una prueba de reinicio.**
+Las pruebas de laboratorio anteriores se ejecutaron satisfactoriamente el 2026-11-13. La actualización administrativa quedó **activa** con el motor nuevo. El reinicio real se observó después: Windows pasó del arranque 2026-10-18T18:59:33Z al 2026-11-13T19:07:29Z. El servicio arrancó en modo Automatic con PID nuevo; el guardián dejó un recibo SYSTEM del mismo arranque y el sondeo filtrado pasó. Wi-Fi mantuvo 127.0.0.1 y ::1; example.com y Google HTTPS funcionaron y el dominio de diagnóstico adulto devolvió 0.0.0.0. La entrada del panel en HKCU Run existe y se observó su proceso abierto después de iniciar sesión; el momento exacto de apertura automática del panel no se midió.
 
 El verificador del PC guardó la evidencia local en `work/upgrade05-evidence`. Pasaron: IPC autenticado y espera preservada, DNS local IPv4/IPv6 con bloqueo de categoría, Google/example.com HTTPS 200, endpoint conocido Google DoH inaccesible, hosts residual para X y el dominio configurado, 18 políticas y 4 reglas firewall leídas, parada y retirada anticipadas rechazadas, respaldo filtrado con el motor parado, recuperación del guardián al motor local, ACL sin permiso genérico LocalService, y servicio/tarea de arranque configurados. Se corrigieron dos fallos encontrados durante la actualización: compatibilidad de Add-Type con PowerShell 5.1 y ausencia de la entrada antigua de desinstalación. Una comprobación de hosts inicialmente no interpretaba el error NoData de Windows como bloqueo; se corrigió y la prueba real posterior pasó.
 
 No se verificó Comet visualmente a petición del propietario. No se completó una espera real de 24 horas; se comprobó su lógica y el rechazo anticipado.
+

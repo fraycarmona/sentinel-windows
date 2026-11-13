@@ -14,7 +14,10 @@ sealed class WindowsService:ServiceBase {
  public WindowsService(){ServiceName="Sentinel"; CanStop=true;}
  protected override void OnStart(string[] args){
   task=new Engine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"Sentinel"),53,false).Run(stop.Token);
-  _=task.ContinueWith(t=>{if(t.IsFaulted) Environment.Exit(1);},TaskScheduler.Default);
+  _=task.ContinueWith(t=>{if(t.IsFaulted){
+   try{File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"Sentinel","service-error.txt"),DateTimeOffset.UtcNow+"\n"+t.Exception);}catch(Exception e) when(e is IOException or UnauthorizedAccessException){}
+   Environment.Exit(1);
+  }},TaskScheduler.Default);
  }
  protected override void OnStop(){stop.Cancel();try{task?.Wait(TimeSpan.FromSeconds(8));}catch(AggregateException e) when(e.InnerExceptions.All(x=>x is OperationCanceledException)){}}
 }

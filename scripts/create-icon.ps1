@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 $dir=Join-Path (Split-Path $PSScriptRoot) 'assets'
 New-Item -ItemType Directory -Force $dir | Out-Null

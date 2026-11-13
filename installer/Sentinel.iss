@@ -1,8 +1,8 @@
-; Development GUI package: deliberately does not silently enable unvalidated machine networking.
+﻿; Development GUI package: deliberately does not silently enable unvalidated machine networking.
 [Setup]
 AppId=Sentinel-Lab-Prototype
 AppName=SENTINEL Laboratorio
-AppVersion=0.1.0
+AppVersion=0.3.0
 DefaultDirName={localappdata}\Sentinel-Lab
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -18,6 +18,6 @@ Source: "..\scripts\*"; DestDir: "{app}\scripts"
 Source: "..\config\*"; DestDir: "{app}\config"
 Source: "..\docs\*"; DestDir: "{app}\docs"
 [Icons]
-Name: "{group}\SENTINEL Â· Interfaz demo"; Filename: "{app}\dist\UI\SENTINEL.exe"; Parameters: "--demo"
+Name: "{group}\SENTINEL · Interfaz demo"; Filename: "{app}\dist\UI\SENTINEL.exe"; Parameters: "--demo"
 ; This uninstaller removes only the portable lab package, not the installed service.
 ; Production MSI with one enforced 24h flow remains a release gate.

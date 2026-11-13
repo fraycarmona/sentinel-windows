@@ -1,5 +1,7 @@
 # Evasión por DoH, VPN y proxy: investigación y diseño
 
+Actualización: se ha añadido una primera implementación experimental. Véase [modo estricto 0.3](strict-mode.md). El texto siguiente conserva el contexto de la investigación inicial.
+
 Fecha: 2026-11-09. Estado: diseño pendiente de implementación y pruebas de integración. No se ha activado un bloqueo de VPN ni cambiado el firewall del PC.
 
 ## Conclusión

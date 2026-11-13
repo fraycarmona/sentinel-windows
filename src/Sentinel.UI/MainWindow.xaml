@@ -6,6 +6,7 @@
 <TextBlock x:Name="Motor" Text="Motor: comprobando" Margin="0,3" FontSize="16"/>
 <TextBlock x:Name="Dns" Text="DNS: sin verificar" Margin="0,3" FontSize="16"/>
 <TextBlock x:Name="Twitter" Text="Twitter / X: sin verificar" Margin="0,3" FontSize="16"/>
+<TextBlock x:Name="Strict" Text="Controles anti-evasión: sin verificar" Margin="0,8,0,3" FontSize="13" TextWrapping="Wrap" Foreground="#FBBF24"/>
 <TextBlock x:Name="Updated" Text="" Margin="0,10,0,16" Foreground="#94A3B8"/>
 <WrapPanel><Button x:Name="ActivateButton" Content="Instalar y activar DNS" Click="Activate"/><Button Content="Comprobar ahora" Click="Refresh"/></WrapPanel>
 <TextBlock Text="Salir de la protección" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,8"/>

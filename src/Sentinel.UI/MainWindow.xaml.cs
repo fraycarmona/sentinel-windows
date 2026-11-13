@@ -24,10 +24,12 @@ public partial class MainWindow:Window {
    using var process=Process.Start(new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"System32","WindowsPowerShell","v1.0","powershell.exe")){
     UseShellExecute=true,Verb="runas",WindowStyle=ProcessWindowStyle.Hidden,Arguments=$"-NoProfile -File \"{script}\" -AcceptLabChanges"});
    if(process is not null)await process.WaitForExitAsync();await Update(0);
+   if(process?.ExitCode!=0)MessageBox.Show("No se completó la retirada. Puede haber una espera pendiente o un conflicto de restauración. Consulte la recuperación documentada.","SENTINEL");
   }catch(System.ComponentModel.Win32Exception){MessageBox.Show("Windows no concedió la elevación. El servicio continúa con su estado anterior.");}
  }
  async void Activate(object s,RoutedEventArgs e){
   string script=Path.Combine(AppContext.BaseDirectory,"scripts","activate.ps1");
+  if(!File.Exists(script))script=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","scripts","activate.ps1"));
   if(!File.Exists(script)){MessageBox.Show("Este ejecutable muestra el estado. Para instalar, utiliza el paquete completo SENTINEL y su carpeta scripts.","Paquete de instalación necesario");return;}
   ActivateButton.IsEnabled=false;
   try{
@@ -49,6 +51,9 @@ public partial class MainWindow:Window {
    using var timeout=new CancellationTokenSource(2500);using var pipe=new NamedPipeClientStream(".",demo?"Sentinel.Demo":"Sentinel.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
    await pipe.ConnectAsync(timeout.Token);await pipe.WriteAsync(new[]{command},timeout.Token);using var reader=new StreamReader(pipe);string json=await reader.ReadToEndAsync(timeout.Token);using var doc=JsonDocument.Parse(json);var d=doc.RootElement;
    Motor.Text="Motor: EN EJECUCIÓN";
+   Strict.Text=d.TryGetProperty("StrictJournalPresent",out var strictJournal)
+    ?(strictJournal.GetBoolean()?"Controles anti-evasión: diario detectado; aplicación completa y eficacia NO verificadas.":"Controles anti-evasión: modo estricto NO configurado. VPN no implementada.")
+    :"Controles anti-evasión: el motor instalado no informa de esta capa; sin verificar.";
    FinalizeButton.IsEnabled=d.GetProperty("Ready").GetBoolean();
    if(DateTimeOffset.UtcNow-healthTime>TimeSpan.FromSeconds(30)){
     try{using var check=new CancellationTokenSource(12000);healthy=await DnsProbe.Check(IPAddress.Loopback,demo?1053:53,check.Token) && await DnsProbe.Check(IPAddress.IPv6Loopback,demo?1053:53,check.Token);}
@@ -66,7 +71,7 @@ public partial class MainWindow:Window {
    var remaining=d.GetProperty("Remaining");Countdown.Text=remaining.ValueKind==JsonValueKind.Null?"No hay solicitud pendiente.":d.GetProperty("Ready").GetBoolean()?"Espera completada. Puede ejecutar la retirada documentada.":$"Tiempo de servicio restante: {TimeSpan.FromSeconds(remaining.GetDouble()):c}";
    Details.Text=$"Bloqueos locales: {d.GetProperty("Blocked")} · Errores DNS: {d.GetProperty("Failures")}\n{d.GetProperty("Error").GetString()}";
   }catch(Exception e) when(e is IOException or UnauthorizedAccessException or OperationCanceledException or JsonException or NetworkInformationException){
-   FinalizeButton.IsEnabled=false;healthy=false;Paint("PROTECCIÓN INACTIVA","No hay un motor accesible. Esta ventana por sí sola NO bloquea páginas.","#5B2931");Motor.Text="Motor: DETENIDO O NO ACCESIBLE";Dns.Text="DNS: SIN VERIFICAR";Twitter.Text="Twitter / X: NO ACTIVO";Countdown.Text="Sin conexión con el servicio.";Details.Text="Puedes dejar abierta esta ventana para ver el estado. Se actualiza cada 5 segundos.";
+   FinalizeButton.IsEnabled=false;healthy=false;Strict.Text="Controles anti-evasión: SIN VERIFICAR";Paint("PROTECCIÓN INACTIVA","No hay un motor accesible. Esta ventana por sí sola NO bloquea páginas.","#5B2931");Motor.Text="Motor: DETENIDO O NO ACCESIBLE";Dns.Text="DNS: SIN VERIFICAR";Twitter.Text="Twitter / X: NO ACTIVO";Countdown.Text="Sin conexión con el servicio.";Details.Text="Puedes dejar abierta esta ventana para ver el estado. Se actualiza cada 5 segundos.";
   }finally{Updated.Text="Última comprobación: "+DateTimeOffset.Now.ToString("HH:mm:ss");busy=false;}
  }
 }

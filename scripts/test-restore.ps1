@@ -19,7 +19,7 @@ try {
  $source=Get-Content "$PSScriptRoot/network-lab.ps1" -Raw
  # Unit test only: remove elevation assertion because every network cmdlet above is mocked.
  $source=$source -replace '(?m)^#Requires -RunAsAdministrator\r?\n',''
- & ([scriptblock]::Create($source)) -Restore -AcceptLabChanges
+ & ([scriptblock]::Create($source)) -Restore -Emergency -AcceptLabChanges
  if($script:calls.Count -ne 2){throw "Expected 2 restores, got $($script:calls.Count)"}
  if($script:calls[0] -ne 'IPv4:True:'){throw 'DHCP restore failed'}
  if($script:calls[1] -ne 'IPv6:False:2001:db8::53'){throw 'Static restore failed'}

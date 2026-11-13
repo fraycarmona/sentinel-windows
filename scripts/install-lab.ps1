@@ -29,7 +29,7 @@ $uninstall='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Sentinel'
 if(Test-Path $uninstall){throw 'Existe una entrada de desinstalación ajena; no se sobrescribe.'}
 New-Item $uninstall -Force | Out-Null
 New-ItemProperty $uninstall DisplayName -Value 'SENTINEL - protección DNS' -PropertyType String | Out-Null
-New-ItemProperty $uninstall DisplayVersion -Value '0.2.0' -PropertyType String | Out-Null
+New-ItemProperty $uninstall DisplayVersion -Value '0.3.0' -PropertyType String | Out-Null
 New-ItemProperty $uninstall UninstallString -Value ('"'+$target+'\UI\SENTINEL.exe" --uninstall') -PropertyType String | Out-Null
 New-ItemProperty $uninstall DisplayIcon -Value ($target+'\UI\SENTINEL.exe') -PropertyType String | Out-Null
 New-ItemProperty $uninstall NoModify -Value 1 -PropertyType DWord | Out-Null

@@ -43,7 +43,7 @@ try{
 param([string]$Scripts,[string]$Evidence)
 for($i=0;$i -lt 180;$i++){Start-Sleep -Seconds 1}
 if(Test-Path "$Evidence/armed") {
- try { & "$Scripts/network-lab.ps1" -Restore -AcceptLabChanges; 'restored' | Set-Content "$Evidence/watchdog-result.txt" }
+ try { & "$Scripts/network-lab.ps1" -Restore -Emergency -AcceptLabChanges; 'restored' | Set-Content "$Evidence/watchdog-result.txt" }
  catch { $_ | Out-String | Set-Content "$Evidence/watchdog-result.txt" }
 }
 '@ | Set-Content $recovery
@@ -56,7 +56,7 @@ if(Test-Path "$Evidence/armed") {
   'ready' | Set-Content "$Evidence/browser-ready"
   for($i=0;$i -lt 120;$i++){if(Test-Path "$Evidence/browser-done"){break};Start-Sleep -Seconds 1}
  }
- & "$PSScriptRoot/network-lab.ps1" -Restore -AcceptLabChanges
+ & "$PSScriptRoot/network-lab.ps1" -Restore -Emergency -AcceptLabChanges
  Remove-Item -LiteralPath "$Evidence/armed"
  $after=@(Get-DnsClientServerAddress | Select-Object InterfaceIndex,AddressFamily,ServerAddresses)
  $after | ConvertTo-Json -Depth 5 | Set-Content "$Evidence/dns-after.json"

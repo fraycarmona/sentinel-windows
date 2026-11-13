@@ -1,6 +1,7 @@
 ﻿#Requires -RunAsAdministrator
-param([switch]$Apply,[switch]$Restore,[Parameter(Mandatory)][switch]$AcceptLabChanges)
+param([switch]$Apply,[switch]$Restore,[switch]$Emergency,[Parameter(Mandatory)][switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
+if($Restore -and !$Emergency){Import-Module "$PSScriptRoot/StrictControl.psm1" -Force;Assert-SentinelRemovalReady}
 if(!$AcceptLabChanges -or ($Apply -eq $Restore)){throw 'Seleccione Apply o Restore y confirme AcceptLabChanges.'}
 $journal=Join-Path $env:ProgramData 'Sentinel/browser-backup.json'
 if($Apply){

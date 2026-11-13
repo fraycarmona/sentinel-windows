@@ -56,7 +56,13 @@ public sealed class Engine {
  }
  async Task Udp(IPAddress ip,CancellationToken ct){
   using var udp=new UdpClient(new IPEndPoint(ip,port));
-  while(!ct.IsCancellationRequested){var packet=await udp.ReceiveAsync(ct);if(!slots.Wait(0))continue;
+  while(!ct.IsCancellationRequested){
+   UdpReceiveResult packet;
+   try{packet=await udp.ReceiveAsync(ct);}
+   // Windows reports ICMP port-unreachable from an earlier DNS reply here.
+   // A client closing its socket must not terminate the shared DNS listener.
+   catch(SocketException e) when(e.SocketErrorCode==SocketError.ConnectionReset){continue;}
+   if(!slots.Wait(0))continue;
    _=Handle(); async Task Handle(){try{var b=await Resolve(packet.Buffer,ct); if(b.Length>512)b=Truncate(packet.Buffer);await udp.SendAsync(b,packet.RemoteEndPoint,ct);}catch(Exception e) when(e is IOException or SocketException or OperationCanceledException or ObjectDisposedException){}finally{slots.Release();}}
   }
  }
@@ -84,7 +90,7 @@ public sealed class Engine {
     lock(gate){
      if(command[0]==1 && stateError is null && state is null){state=LockState.Request(DateTimeOffset.UtcNow);store.Save(state);}
      if(command[0]==2 && stateError is null){store.Save(null);state=null;}
-     json=JsonSerializer.Serialize(new {Protection="DEGRADADA", Service="EN EJECUCIÓN", Demo=demo, TwitterBlocked=rules.Blocks("x.com") && rules.Blocks("twitter.com") && rules.Blocks("twimg.com") && rules.Blocks("t.co"), Dns=lastDns, Blocked=Interlocked.Read(ref blocked), Failures=Interlocked.Read(ref failures), Remaining=state?.RemainingSeconds, Ready=stateError is null && state?.Ready==true, Error=stateError, Scope=demo?"Prueba local :1053; no protege el equipo":"Cobertura DNS; no garantiza bloqueo de VPN, proxies o DNS propio del navegador"});
+     json=JsonSerializer.Serialize(new {Protection="DEGRADADA", Service="EN EJECUCIÓN", Demo=demo, StrictJournalPresent=File.Exists(Path.Combine(dir,"strict-backup.json")), TwitterBlocked=rules.Blocks("x.com") && rules.Blocks("twitter.com") && rules.Blocks("twimg.com") && rules.Blocks("t.co"), Dns=lastDns, Blocked=Interlocked.Read(ref blocked), Failures=Interlocked.Read(ref failures), Remaining=state?.RemainingSeconds, Ready=stateError is null && state?.Ready==true, Error=stateError, Scope=demo?"Prueba local :1053; no protege el equipo":"Cobertura DNS; no garantiza bloqueo de VPN, proxies o DNS propio del navegador"});
     }
     await pipe.WriteAsync(System.Text.Encoding.UTF8.GetBytes(json),timeout.Token);
    }catch(Exception e) when(e is IOException or OperationCanceledException){ }

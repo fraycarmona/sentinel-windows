@@ -1,6 +1,10 @@
-# SENTINEL 0.2 — prototipo para Windows
+# SENTINEL 0.4 — prototipo para Windows
+
+Reparación 0.4: [caída 10054, activación existente y recuperación independiente de DNS](docs/repair-0.4.md).
 
 Servicio DNS local y panel WPF para autocontrol voluntario. No ofrece protección absoluta ni resistencia frente al administrador del equipo.
+
+**Nuevo: [modo estricto experimental](docs/strict-mode.md)**. Código para desactivar incógnito, DoH y proxies en Edge/Chrome/Firefox y restringir la red de ejecutables concretos mediante firewall. Diario y restauración con espera integrada. No activado automáticamente ni validado aún con tráfico real. El transporte VPN sigue pendiente; esta versión no promete bloquear todos los navegadores o emuladores.
 
 ## Ejecutable
 En el paquete distribuible, abrir **SENTINEL.exe** desde la raíz, conservando `dist`, `scripts` y `config` junto al ejecutable. Es autocontenido x64 y no requiere instalar .NET.
@@ -34,8 +38,8 @@ El instalador registra el servicio con inicio automático, el panel al iniciar s
 Recuperación excepcional: `scripts/remove-lab.ps1 -Emergency -AcceptLabChanges` como administrador. Restaura antes de detener el resolvedor y conserva datos para diagnóstico. Véase [recuperación](docs/recovery.md).
 
 ## Pendiente antes de producto final
-La [investigación de evasión por DNS cifrado, VPN y proxy](docs/anti-evasion-research.md) define las medidas y pruebas para un modo estricto. Es diseño pendiente, no una protección ya aplicada.
+La [investigación de evasión por DNS cifrado, VPN y proxy](docs/anti-evasion-research.md) define las medidas y pruebas. El [estado de implementación 0.3](docs/strict-mode.md) distingue el código añadido de las capas todavía pendientes.
 
 WFP/firewall, reconciliación de nuevos adaptadores, políticas verificadas en todos los navegadores, bloqueo universal de DoH/VPN, instalador de producción firmado con retirada integrada, actualización segura y pruebas de reinicio completo de Windows. El proyecto Inno es un empaquetador de laboratorio, no ese instalador de producción.
 
-Código: `src/Sentinel.Core`, `src/Sentinel.Service`, `src/Sentinel.UI`, `src/Sentinel.Tests`. Documentación histórica de diseño en `docs`; el estado vigente está en `docs/release-0.2.md`.
+Código: `src/Sentinel.Core`, `src/Sentinel.Service`, `src/Sentinel.UI`, `src/Sentinel.Tests`. Documentación histórica de diseño en `docs`; el estado vigente está en `docs/release-0.3.md`.

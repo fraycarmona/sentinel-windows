@@ -3,17 +3,21 @@ param([switch]$Emergency,[Parameter(Mandatory)][switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
 if(!$AcceptLabChanges){throw 'Confirmación requerida'}
 Import-Module "$PSScriptRoot/StrictControl.psm1" -Force
-if(!$Emergency){Assert-SentinelRemovalReady}
 Import-Module "$PSScriptRoot/Maintenance.psm1" -Force
 $lease=Enter-SentinelMaintenance
 try{
-& "$PSScriptRoot/hosts-lab.ps1" -Mode Restore -Emergency:$Emergency
+if(!$Emergency){Assert-SentinelRemovalReady}
+# Authorize the entire transaction before mutation. A concurrent cancellation
+# must not interrupt restoration after the first journal has been processed.
+if(Test-Path (Join-Path $env:ProgramData 'Sentinel/hosts-backup.json')){
+ & "$PSScriptRoot/hosts-lab.ps1" -Mode Restore -Emergency
+}
 if(Test-Path (Join-Path $env:ProgramData 'Sentinel/strict-backup.json')){
- & "$PSScriptRoot/strict-lab.ps1" -Mode Restore -Emergency:$Emergency -AcceptLabChanges
+ & "$PSScriptRoot/strict-lab.ps1" -Mode Restore -Emergency -AcceptLabChanges
 }
 # Restore BEFORE stopping the resolver. Errors leave service available for recovery.
-& "$PSScriptRoot/network-lab.ps1" -Restore -Emergency:$Emergency -AcceptLabChanges
-& "$PSScriptRoot/browser-lab.ps1" -Restore -Emergency:$Emergency -AcceptLabChanges
+& "$PSScriptRoot/network-lab.ps1" -Restore -Emergency -AcceptLabChanges
+& "$PSScriptRoot/browser-lab.ps1" -Restore -Emergency -AcceptLabChanges
 $guardianScript=Join-Path $env:ProgramFiles 'Sentinel/scripts/dns-guardian.ps1'
 $guardianArguments=@(
  ('-NoProfile -NonInteractive -File "'+$guardianScript+'"')

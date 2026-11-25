@@ -55,6 +55,7 @@ function Read-SentinelStatus {
 
 $originalDns=@(Get-AdapterDns) -join [Environment]::NewLine
 $hostsHash=(Get-FileHash $hostsFile).Hash
+$panel=$null
 try{
     $setupCode=Invoke-Package $Setup 'setup'
     if($setupCode -ne 0){throw "El instalador devolvió $setupCode."}
@@ -100,9 +101,16 @@ try{
     if($initial.Ready -ne $false -or $null -ne $initial.Remaining -or $initial.Error){
         throw 'El estado de retirada inicial es incorrecto.'
     }
-    $requested=Read-SentinelStatus -Command 1
-    if($requested.Ready -ne $false -or $requested.Remaining -ne 86400){
-        throw 'La retirada no inicia la espera de 24 horas.'
+    $panel=Start-Process -FilePath $ui -ArgumentList '--uninstall' -PassThru
+    $timer.Restart()
+    do{
+        Start-Sleep -Milliseconds 500
+        $panel.Refresh()
+        if($panel.HasExited){throw "El panel instalado terminó con código $($panel.ExitCode)."}
+        $requested=Read-SentinelStatus
+    }until($null -ne $requested.Remaining -or $timer.Elapsed.TotalSeconds -ge 20)
+    if($requested.Ready -ne $false -or $requested.Remaining -lt 86380 -or $requested.Remaining -gt 86400){
+        throw 'La entrada de Aplicaciones instaladas no inicia la espera de 24 horas.'
     }
     $null=Invoke-Package $uninstaller 'retirada-anticipada'
     if(!(Test-Path $arp) -or !(Test-Path $uninstaller) -or
@@ -116,6 +124,7 @@ try{
     }
     Write-Host 'Activación, configuración de arranque y retirada anticipada verificadas.'
 }finally{
+    if($panel -and !$panel.HasExited){Stop-Process -InputObject $panel}
     foreach($name in 'setup-error.txt','guardian-status.txt','runtime\service-error.txt'){
         $path=Join-Path $data $name
         if(Test-Path $path){Get-Content $path | Out-File (Join-Path $evidence "$([IO.Path]::GetFileNameWithoutExtension($name)).log")}

@@ -17,10 +17,23 @@ if($Packaged){
 # Apply the ACL at creation, before writing any state used by the service.
 $acl=[Security.AccessControl.DirectorySecurity]::new()
 $acl.SetAccessRuleProtection($true,$false)
+$admins=[Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+$acl.SetOwner($admins)
 foreach($sid in 'S-1-5-18','S-1-5-32-544'){
  $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))
 }
-[IO.Directory]::CreateDirectory($data,$acl) | Out-Null
+$directory=[IO.Directory]::CreateDirectory($data,$acl)
+$actualAcl=$directory.GetAccessControl()
+$actualRules=@($actualAcl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+if(($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+   $actualAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $admins.Value -or
+   !$actualAcl.AreAccessRulesProtected -or $actualRules.Count -ne 2 -or
+   @($actualRules | Where-Object {
+     $_.IdentityReference.Value -notin 'S-1-5-18','S-1-5-32-544' -or
+     $_.FileSystemRights -ne 'FullControl' -or $_.AccessControlType -ne 'Allow'
+   }).Count){
+ throw 'El directorio de estado no tiene la seguridad esperada.'
+}
 if($Packaged){
  [IO.File]::WriteAllText("$data/setup-owned",'SentinelSetup')
 }else{

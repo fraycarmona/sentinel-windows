@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 function Save-SentinelNetworkJournal {
  param([string]$Path,$Rows)
@@ -43,6 +43,16 @@ function Set-SentinelNetworkMode {
  }
  if($Mode -eq 'Restore'){Move-Item -LiteralPath $Journal -Destination ($Journal+'.restored') -Force}
 }
+function Get-SentinelDnsAdapterFamilies {
+ $adapters=@(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
+ foreach($family in 'IPv4','IPv6'){
+  $bound=@(Get-DnsClientServerAddress -AddressFamily $family)
+  foreach($nic in $adapters){
+   if($nic.ifIndex -notin $bound.InterfaceIndex){continue}
+   [pscustomobject]@{Guid=$nic.InterfaceGuid.ToString();Family=$family;Index=$nic.ifIndex}
+  }
+ }
+}
 function New-SentinelNetworkBackend {
  return @{
   Read={param($r)
@@ -64,4 +74,4 @@ function New-SentinelNetworkBackend {
   }
  }
 }
-Export-ModuleMember -Function Save-SentinelNetworkJournal,Get-SentinelFallback,Set-SentinelNetworkMode,New-SentinelNetworkBackend
+Export-ModuleMember -Function Get-SentinelDnsAdapterFamilies,Save-SentinelNetworkJournal,Get-SentinelFallback,Set-SentinelNetworkMode,New-SentinelNetworkBackend

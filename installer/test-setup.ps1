@@ -30,10 +30,10 @@ function Invoke-Package([string]$Executable,[string]$LogName) {
 
 function Get-AdapterDns {
     $adapters=@(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
-    if(!$adapters.Count){throw 'La VM no tiene adaptadores físicos activos.'}
-    foreach($nic in $adapters | Sort-Object InterfaceGuid){
-        $addresses=Get-DnsClientServerAddress -InterfaceIndex $nic.ifIndex | Sort-Object AddressFamily
-        foreach($row in $addresses){"$($nic.InterfaceGuid):$($row.AddressFamily):$($row.ServerAddresses -join ',')"}
+    $clients=@(Get-DnsClientServerAddress | Where-Object InterfaceIndex -in $adapters.ifIndex)
+    if(!$clients.Count){throw 'La VM no tiene adaptadores físicos activos con cliente DNS.'}
+    foreach($row in $clients | Sort-Object InterfaceIndex,AddressFamily){
+        "$($row.InterfaceIndex):$($row.AddressFamily):$($row.ServerAddresses -join ',')"
     }
 }
 
@@ -53,6 +53,8 @@ function Read-SentinelStatus {
     }finally{$pipe.Dispose()}
 }
 
+Get-NetAdapter | Format-Table Name,InterfaceDescription,ifIndex,HardwareInterface,Status
+Get-DnsClientServerAddress | Format-Table InterfaceAlias,InterfaceIndex,AddressFamily
 $originalDns=@(Get-AdapterDns) -join [Environment]::NewLine
 $hostsHash=(Get-FileHash $hostsFile).Hash
 $panel=$null

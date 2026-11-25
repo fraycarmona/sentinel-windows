@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 param([switch]$Apply,[switch]$Restore,[switch]$Fallback,[switch]$Reconcile,[switch]$Emergency,[Parameter(Mandatory)][switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
 if(!$AcceptLabChanges -or (@($Apply,$Restore,$Fallback,$Reconcile | Where-Object {$_}).Count -ne 1)){throw 'Seleccione una operación y confirme AcceptLabChanges.'}
@@ -21,16 +21,12 @@ try{
  }
  if((Get-Service Sentinel).Status -ne 'Running' -or !(Test-SentinelFilteredResolver)){throw 'El servicio local debe superar la prueba de filtrado.'}
  $rows=if(Test-Path -LiteralPath $journal){Get-Content -LiteralPath $journal -Raw | ConvertFrom-Json}else{@()}
- foreach($nic in Get-NetAdapter -Physical | Where-Object Status -eq 'Up'){
-  if(@($rows | Where-Object Guid -eq $nic.InterfaceGuid.ToString()).Count){continue}
-  $new=@()
-  foreach($family in 'IPv4','IPv6'){
-   $r=[pscustomobject]@{Guid=$nic.InterfaceGuid.ToString();Family=$family;Static='';Loop=$(if($family -eq 'IPv4'){'127.0.0.1'}else{'::1'});Done=$false}
-   $current=& $backend.Read $r
-   if($null -eq $current -or ![string]::IsNullOrWhiteSpace($current.Static)){throw 'Nuevo adaptador con DNS estático: requiere revisión; no se sobrescribe.'}
-   $new+=$r
-  }
-  $rows+=$new
+ foreach($binding in Get-SentinelDnsAdapterFamilies){
+  if(@($rows | Where-Object {$_.Guid -eq $binding.Guid -and $_.Family -eq $binding.Family}).Count){continue}
+  $r=[pscustomobject]@{Guid=$binding.Guid;Family=$binding.Family;Static='';Loop=$(if($binding.Family -eq 'IPv4'){'127.0.0.1'}else{'::1'});Done=$false}
+  $current=& $backend.Read $r
+  if($null -eq $current -or ![string]::IsNullOrWhiteSpace($current.Static)){throw 'Nuevo adaptador con DNS estático: requiere revisión; no se sobrescribe.'}
+  $rows+=$r
  }
  if(!$rows.Count){throw 'No hay adaptadores físicos activos compatibles.'}
  Save-SentinelNetworkJournal $journal $rows

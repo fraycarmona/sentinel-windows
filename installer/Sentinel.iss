@@ -15,6 +15,8 @@ ArchitecturesAllowed=x64compatible or arm64
 ArchitecturesInstallIn64BitMode=x64compatible or arm64
 SetupMutex=Global\SentinelSetup
 CreateUninstallRegKey=no
+SetupLogging=yes
+UninstallLogging=yes
 OutputDir=..\dist\Installer
 OutputBaseFilename=Sentinel-Setup
 SetupIconFile=..\assets\sentinel.ico
@@ -88,10 +90,10 @@ function RunConfiguration(Operation: String): Integer;
 var
   ExitCode: Integer;
 begin
-  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+  if ExecAndLogOutputWithNativeSysDir(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     '-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "' +
       ExpandConstant('{app}\scripts\configure.ps1') + '" -Operation ' + Operation,
-    ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+    ExpandConstant('{app}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode, nil) then
     Result := ExitCode
   else
   begin

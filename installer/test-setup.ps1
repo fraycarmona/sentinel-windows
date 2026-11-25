@@ -60,7 +60,10 @@ $hostsHash=(Get-FileHash $hostsFile).Hash
 $panel=$null
 try{
     $setupCode=Invoke-Package $Setup 'setup'
-    if($setupCode -ne 0){throw "El instalador devolvió $setupCode."}
+    if($setupCode -ne 0){
+        Get-Content (Join-Path $evidence 'setup.log') -Tail 30 | Write-Host
+        throw "El instalador devolvió $setupCode."
+    }
 
     $service=Get-CimInstance Win32_Service -Filter "Name='Sentinel'"
     if($service.StartMode -ne 'Auto' -or $service.State -ne 'Running' -or

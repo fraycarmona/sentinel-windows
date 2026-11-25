@@ -46,10 +46,10 @@ function Set-SentinelNetworkMode {
 function Get-SentinelDnsAdapterFamilies {
  $adapters=@(Get-NetAdapter -Physical | Where-Object Status -eq 'Up')
  foreach($family in 'IPv4','IPv6'){
-  $bound=@(Get-DnsClientServerAddress -AddressFamily $family)
+  $bound=@(Get-DnsClientServerAddress -AddressFamily $family | Select-Object -ExpandProperty InterfaceIndex)
   foreach($nic in $adapters){
-   if($nic.ifIndex -notin $bound.InterfaceIndex){continue}
-   [pscustomobject]@{Guid=$nic.InterfaceGuid.ToString();Family=$family;Index=$nic.ifIndex}
+   if($nic.ifIndex -notin $bound){continue}
+   [pscustomobject]@{Guid=$nic.InterfaceGuid.ToString();Family=$family}
   }
  }
 }

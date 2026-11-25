@@ -15,9 +15,21 @@ function Assert-PackagedService {
     }
 }
 
+function Test-PackagedData {
+    if(!(Test-Path -LiteralPath $data -PathType Container)){return $false}
+    $directory=Get-Item -LiteralPath $data -Force
+    if($directory.Attributes -band [IO.FileAttributes]::ReparsePoint){return $false}
+    $acl=$directory.GetAccessControl()
+    if(!$acl.AreAccessRulesProtected -or
+        $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin 'S-1-5-18','S-1-5-32-544'){
+        return $false
+    }
+    return Test-Path -LiteralPath $ownerMarker -PathType Leaf
+}
+
 function Write-SetupError([string]$Message) {
     Write-Host $Message
-    if(Test-Path -LiteralPath $ownerMarker){
+    if(Test-PackagedData){
         [IO.File]::WriteAllText((Join-Path $data 'setup-error.txt'),$Message)
     }
 }
@@ -49,7 +61,7 @@ if($Operation -eq 'Install'){
         exit 0
     }catch{
         $message=$_.Exception.Message
-        if(Test-Path -LiteralPath $ownerMarker){
+        if(Test-PackagedData){
             try{
                 if(Test-Path -LiteralPath $serviceKey){Assert-PackagedService}
                 & "$PSScriptRoot/remove-lab.ps1" -Emergency -AcceptLabChanges
@@ -67,8 +79,11 @@ if($Operation -eq 'Install'){
 }
 
 try{
+    $ownsData=Test-PackagedData
+    if(!$ownsData -and ((Test-Path -LiteralPath $data) -or (Test-Path -LiteralPath $serviceKey))){
+        throw 'El estado instalado no pertenece al paquete.'
+    }
     if(Test-Path -LiteralPath $serviceKey){
-        if(!(Test-Path -LiteralPath $ownerMarker)){throw 'Falta el estado del instalador.'}
         Assert-PackagedService
         Import-Module "$PSScriptRoot/StrictControl.psm1" -Force
         try{Assert-SentinelRemovalReady}catch{Write-Host $_.Exception.Message;exit 24}
@@ -81,7 +96,7 @@ try{
         (Get-ScheduledTask -TaskName $guardian -ErrorAction SilentlyContinue)){
         throw 'El servicio o la tarea siguen registrados.'
     }
-    if(Test-Path -LiteralPath $ownerMarker){Remove-Item -LiteralPath $data -Recurse -Force}
+    if($ownsData){Remove-Item -LiteralPath $data -Recurse -Force}
     $ui=Join-Path $target 'UI\SENTINEL.exe'
     Get-Process SENTINEL -ErrorAction SilentlyContinue | Where-Object Path -eq $ui | Stop-Process
     exit 0

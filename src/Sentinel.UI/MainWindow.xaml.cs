@@ -12,11 +12,19 @@ public partial class MainWindow:Window {
  readonly System.Windows.Threading.DispatcherTimer timer=new(){Interval=TimeSpan.FromSeconds(5)};
  bool busy,healthy; DateTimeOffset healthTime=DateTimeOffset.MinValue;
  readonly bool demo=Environment.GetCommandLineArgs().Contains("--demo");
- public MainWindow(){InitializeComponent();Loaded+=async(_,_)=>await Update(Environment.GetCommandLineArgs().Contains("--uninstall")?(byte)1:(byte)0);timer.Tick+=async(_,_)=>await Update(0);timer.Start();Closed+=(_,_)=>timer.Stop();}
+ readonly string packagedUninstaller=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","unins000.exe"));
+ public MainWindow(){InitializeComponent();if(File.Exists(packagedUninstaller))ActivateButton.Visibility=Visibility.Collapsed;Loaded+=async(_,_)=>await Update(Environment.GetCommandLineArgs().Contains("--uninstall")?(byte)1:(byte)0);timer.Tick+=async(_,_)=>await Update(0);timer.Start();Closed+=(_,_)=>timer.Stop();}
  async void Request(object s,RoutedEventArgs e)=>await Update(1);
  async void Cancel(object s,RoutedEventArgs e)=>await Update(2);
  async void Refresh(object s,RoutedEventArgs e){healthTime=DateTimeOffset.MinValue;await Update(0);}
  async void FinalizeRemoval(object s,RoutedEventArgs e){
+  if(File.Exists(packagedUninstaller)){
+   try{
+    using var uninstaller=Process.Start(new ProcessStartInfo(packagedUninstaller){UseShellExecute=true,Verb="runas"});
+    if(uninstaller is not null)Close();
+   }catch(System.ComponentModel.Win32Exception){MessageBox.Show("Windows no concedió la elevación. El servicio continúa con su estado anterior.");}
+   return;
+  }
   string script=Path.Combine(AppContext.BaseDirectory,"scripts","remove-lab.ps1");
   if(!File.Exists(script))script=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","scripts","remove-lab.ps1"));
   if(!File.Exists(script)){MessageBox.Show("No se encuentra el desinstalador. Consulte la documentación de recuperación.");return;}

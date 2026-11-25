@@ -1,8 +1,10 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
+param([switch]$Packaged)
 $ErrorActionPreference='Stop'
 $script=Join-Path $env:ProgramFiles 'Sentinel/scripts/dns-guardian.ps1'
 if(!(Test-Path -LiteralPath $script)){throw 'Falta el componente de recuperación instalado.'}
 $arguments='-NoProfile -NonInteractive -File "'+$script+'"'
+if($Packaged){$arguments=$arguments.Replace(' -File ', ' -ExecutionPolicy RemoteSigned -File ')}
 $previous=Get-ScheduledTask -TaskName SentinelDnsRecovery -ErrorAction SilentlyContinue
 if($previous -and @($previous.Actions | Where-Object {$_.Arguments -ne $arguments}).Count){throw 'Existe una tarea de recuperación ajena; no se modifica.'}
 $action=New-ScheduledTaskAction -Execute "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument $arguments

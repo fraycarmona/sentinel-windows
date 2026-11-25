@@ -4,9 +4,9 @@
 
 Procedimiento visible y deliberadamente accesible al propietario. Las comprobaciones de laboratorio y del PC se detallan por versión; no se declara probado un reinicio que no se haya observado. Se evita depender del servicio o de un estado de espera válido. No requiere otra cuenta ni tocar Defender/UAC/BitLocker.
 
-1. En PowerShell administrador, desde `C:\Program Files\Sentinel\scripts`, ejecutar `./remove-lab.ps1 -Emergency -AcceptLabChanges`.
+1. En PowerShell administrador, desde `C:\Program Files\Sentinel\scripts`, ejecutar `powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\remove-lab.ps1 -Emergency -AcceptLabChanges`.
 2. Adquiere el bloqueo de mantenimiento, restaura hosts, DNS y políticas registradas. Después detiene y elimina el servicio. Si falla restaurar, conserva servicio/diario para diagnosticar; no se retiran archivos automáticamente.
-3. Verificar resolución legítima, reinicio, políticas y ausencia del servicio. Sólo entonces borrar los directorios exactos de SENTINEL si se desea.
+3. Verificar resolución legítima, reinicio, políticas y ausencia del servicio. Tras verificar la conectividad, ejecuta `unins000.exe` desde la carpeta de instalación para retirar el paquete y su entrada de Windows. En instalaciones de laboratorio puedes borrar los directorios exactos de SENTINEL después de la verificación.
 
 Si el script no funciona, consultar `C:\ProgramData\Sentinel\network-backup.json`. Restaurar cada interfaz por GUID y familia con Set-DnsClientServerAddress: usar ResetServerAddresses cuando Static esté vacío (DHCP); en otro caso usar las direcciones estáticas originales. No usar reset universal si antes existía DNS corporativo estático. No sobrescribir cambios posteriores sin revisar. [API Microsoft](https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclientserveraddress).
 

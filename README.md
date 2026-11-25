@@ -4,7 +4,7 @@ Servicio LocalService y panel WPF de autocontrol. [Cambios, fuentes y límites d
 
 ## Ejecutable y arranque
 
-Abrir `SENTINEL.exe` conservando las carpetas del paquete. El servicio se configura Automatic, el guardián como tarea SYSTEM al arrancar y la ventana para la sesión del usuario. El arranque normal no pide UAC; instalación, actualización y retirada sí.
+Ejecuta `Sentinel-Setup.exe` con una cuenta administradora de Windows 11 x64 o ARM64. El archivo incluye el servicio, el panel y sus runtimes. El instalador activa el filtrado, configura el servicio para iniciar con Windows y registra el guardián y el panel.
 
 Cerrar el panel no detiene el servicio. La parada ordinaria se rechaza antes de completar la espera. El guardián intenta reiniciar el motor, concilia adaptadores físicos DHCP y comprueba el filtrado. La configuración de arranque se distingue de una prueba real de reinicio de Windows.
 
@@ -18,20 +18,20 @@ Cloudflare Families por HTTPS, reglas locales de Twitter/X y el dominio adulto i
 
 No hay bloqueo universal de DoH/VPN/proxy, navegadores portables, Comet o emuladores, ni análisis de imágenes dentro de plataformas permitidas. Hosts sólo cubre nombres exactos y www. El respaldo filtrado de categoría mantiene conectividad si pasa las pruebas, pero no reescribe SafeSearch como el motor local.
 
-## Instalar o actualizar
+## Instalación
 
-Usar el botón de activación del paquete. Actualizaciones conservan reglas y espera. Para una comprobación administrativa detallada: `scripts/upgrade-verify.ps1 -Evidence <carpeta-local>`.
+El instalador admite instalaciones nuevas. Si detecta una instalación o restauración pendiente, conserva su estado y detiene la instalación. Consulta los [requisitos y el proceso de compilación](docs/installation.md).
 
 Se admiten adaptadores físicos activos con DNS automático. Configuraciones estáticas, personalizadas o en conflicto se rechazan sin sobrescribirlas. Reiniciar navegadores después de aplicar políticas; páginas almacenadas y conexiones abiertas pueden continuar.
 
 ## Retirada y recuperación
 
-Solicitar retirada en la interfaz; tras 24 horas acumuladas, usar **Finalizar retirada**. Todos los flujos normales de restauración de DNS, hosts y políticas consultan el servicio autenticado. No se confía en el reloj civil para adelantar la espera.
+Solicita la retirada en el panel o desde **Configuración > Aplicaciones > Aplicaciones instaladas**. Tras 24 horas acumuladas, usa **Finalizar retirada** en el panel. Todos los flujos normales de restauración de DNS, hosts y políticas consultan el servicio autenticado. No se confía en el reloj civil para adelantar la espera.
 
 La [recuperación administrativa excepcional](docs/recovery.md) permanece documentada para no bloquear permanentemente el PC. Tener administración total permite eludir controles locales: no se promete que esperar sea la única salida posible para un administrador.
 
 ## Compilar y verificar
 
-SDK .NET 10 x64 y PowerShell. `scripts/build.ps1 -Publish`, después `scripts/publish-ui.ps1`. Las pruebas de integración de laboratorio usan exclusivamente el puerto 1053 y un directorio nuevo; el servicio instalado usa 53.
+GitHub Actions compila y prueba el instalador. Una etiqueta `vMAJOR.MINOR.PATCH` publica el mismo archivo en GitHub Releases si pasan las comprobaciones. Las pruebas de integración de laboratorio usan exclusivamente el puerto 1053 y un directorio nuevo; el servicio instalado usa 53.
 
 Ver [informe 0.5](docs/release-0.5.md) para pruebas ejecutadas y pendientes. El [informe de auditoría](docs/audit-2026-11-13.md) describe la base 0.4, no el estado posterior a esta actualización.

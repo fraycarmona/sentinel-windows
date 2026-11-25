@@ -1,26 +1,32 @@
-> Estado actualizado de implementación y pruebas: [versión 0.2](release-0.2.md). Este documento conserva contexto de la iteración inicial.
+# Instalar SENTINEL en Windows 11
 
-# Instalación y desarrollo
+1. Descarga `Sentinel-Setup.exe` desde [GitHub Releases](https://github.com/fraycarmona/sentinel-windows/releases).
+2. Ejecuta el archivo desde la cuenta administradora que utilizará el panel y acepta el aviso de UAC. Se admiten Windows 11 x64 y ARM64. El paquete incorpora .NET y WPF. El filtrado requiere conexión con Cloudflare Families.
+3. Al finalizar, abre SENTINEL y comprueba que muestre **FILTRADO DNS ACTIVO**. Reinicia los navegadores para que lean sus políticas.
 
-## Estado
-Paquete de laboratorio autocontenido Windows x64, sin firma. **Primera integración exclusivamente en VM Windows 11 con instantánea.** Los scripts modificadores no se ejecutaron en el anfitrión. El SDK se descargó localmente; no hay instalación global de herramientas.
+El instalador configura el servicio LocalService para arrancar con Windows, una tarea SYSTEM de recuperación y un acceso directo de inicio para el panel. Todos los cambios de DNS, hosts, políticas y reglas de firewall se registran antes de aplicarse. La red debe tener un adaptador físico activo con DNS automático. El instalador conserva las configuraciones previas si detecta un conflicto. El ejecutable carece de firma Authenticode.
 
-## Compilación
-Desde la raíz: `powershell -File scripts/build.ps1 -Publish` con SDK .NET 10. Los tests fallan el proceso si falla cualquier aserción. NuGet.Config fija origen oficial. Revise docs/build-results.txt.
+Si falla la activación, se intenta restaurar la configuración anterior. Consulta `%ProgramData%\Sentinel\setup-error.txt` y la [recuperación administrativa](recovery.md). Después de una restauración correcta puedes retirar el paquete desde la carpeta de instalación con `unins000.exe`. Para instalaciones ya presentes o recuperaciones pendientes, el instalador conserva los archivos y el contador existentes.
 
-## Piloto VM
-1. Crear instantánea y registrar DNS DHCP/estático de IPv4/IPv6, rutas y políticas antes de empezar.
-2. Copiar el repositorio con dist a la VM. Probar `scripts/demo.ps1` y `dist/UI/SENTINEL.exe --demo` sin elevación; ejecutar `python scripts/dns-smoke.py`.
-3. Con autorización del propietario, PowerShell administrador: `scripts/install-lab.ps1 -AcceptLabChanges`. Copia a Program Files, prepara ACL ProgramData y servicio LocalService automático. No cambia la red todavía.
-4. Ejecutar `scripts/network-lab.ps1 -Apply -AcceptLabChanges`. Guarda DHCP/estático por GUID/familia antes de cambiar DNS a loopback. No lo ejecutar si hay otros servicios escuchando en 53. Comprobar que el proceso tiene los cuatro listeners antes de aplicar.
-5. Opcional: `scripts/browser-lab.ps1 -Apply -AcceptLabChanges`. Rechaza valores previamente existentes en lugar de sobreescribir políticas organizativas. Reiniciar navegadores y revisar edge://policy, chrome://policy, about:policies.
-6. Abrir `C:\Program Files\Sentinel\UI\SENTINEL.exe`. El usuario de control es el SID del administrador instalador; no soporta aún instalación con credenciales de un usuario diferente al destinatario.
-7. Validar navegación legítima y dominio autorizado de prueba del proveedor. Solicitar retirada en UI; tras esperar, `scripts/remove-lab.ps1 -AcceptLabChanges`. Recuperación excepcional: `-Emergency`.
+## Retirada ordinaria
 
-Si falla aplicación de red, conservar diario y ejecutar Restore. La restauración no sobrescribe DNS que otro actor haya cambiado después. Adaptadores ausentes mantienen la recuperación pendiente; reconectarlos. La retirada restaura antes de parar el servicio.
+1. En el panel selecciona **Solicitar retirada (24 h)**. La opción **Desinstalar** en Aplicaciones instaladas abre el panel y registra la misma solicitud.
+2. Tras 24 horas acumuladas de servicio activo, selecciona **Finalizar retirada** y acepta UAC.
+3. El desinstalador consulta al servicio autenticado, restaura los cambios registrados y retira el servicio, la tarea, el acceso de inicio y el paquete. Si la restauración requiere intervención, conserva el material de recuperación.
 
-## Instalador gráfico
-`ISCC installer/Sentinel.iss` con Inno Setup instalado por separado produce un EXE de laboratorio. No compilado aquí. Instala el paquete en LocalAppData y aparece en Aplicaciones instaladas; no configura protección ni instala el servicio automáticamente. Su desinstalador sólo elimina ese paquete. La futura distribución de producción debe integrar servicio, configuración guiada, rollback y el mismo flujo de 24 h para UI y Aplicaciones instaladas; es un requisito pendiente, no resuelto con este empaquetador.
+## Compilar y publicar
 
-## Actualizaciones
-No hay canal automático ni actualización sobre una instalación existente. Antes de implementar: firma Authenticode, manifiesto/versiones firmadas, verificación antes de ejecutar, backup de esquema y rollback de servicio. No retirar e instalar para eludir una espera pendiente. Para iteración de laboratorio usar instantáneas.
+En Windows x64, instala el SDK .NET 10 e Inno Setup 7.1.1. Ejecuta desde la raíz del repositorio:
+
+```powershell
+.\scripts\build.ps1 -Publish -InstallerPayload
+ISCC.exe .\installer\Sentinel.iss
+```
+
+El resultado queda en `dist\Installer\Sentinel-Setup.exe`. GitHub Actions crea ese artefacto al compilar. Si se envía una etiqueta `vMAJOR.MINOR.PATCH`, el flujo publica el ejecutable en GitHub Releases una vez aprobadas las pruebas.
+
+## Verificar en una VM
+
+Ejecuta `installer\test-setup.ps1 -Setup <ruta-al-exe>` desde PowerShell de Windows como administrador, en una VM Windows 11 sin SENTINEL y con instantánea. El script prueba la activación, el sondeo IPv4/IPv6, el arranque configurado, el rechazo de la retirada anticipada y la restauración. Utiliza la recuperación administrativa para limpiar la VM al terminar.
+
+Para verificar el arranque real, instala sobre una instantánea limpia, registra `(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')`, reinicia y ejecuta `scripts\verify-startup.ps1 -PreviousBootUtc <valor>` desde la carpeta instalada. Comprueba también que el panel aparezca al iniciar sesión. La prueba automática de CI comprueba el registro de arranque y el trabajo del guardián durante la sesión actual. La prueba de retirada anticipada conserva la espera original de 24 horas.

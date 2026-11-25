@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 param([switch]$Emergency,[Parameter(Mandatory)][switch]$AcceptLabChanges)
 $ErrorActionPreference='Stop'
 if(!$AcceptLabChanges){throw 'Confirmación requerida'}
@@ -14,8 +14,13 @@ if(Test-Path (Join-Path $env:ProgramData 'Sentinel/strict-backup.json')){
 # Restore BEFORE stopping the resolver. Errors leave service available for recovery.
 & "$PSScriptRoot/network-lab.ps1" -Restore -Emergency:$Emergency -AcceptLabChanges
 & "$PSScriptRoot/browser-lab.ps1" -Restore -Emergency:$Emergency -AcceptLabChanges
+$guardianScript=Join-Path $env:ProgramFiles 'Sentinel/scripts/dns-guardian.ps1'
+$guardianArguments=@(
+ ('-NoProfile -NonInteractive -File "'+$guardianScript+'"')
+ ('-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "'+$guardianScript+'"')
+)
 $recovery=Get-ScheduledTask -TaskName SentinelDnsRecovery -ErrorAction SilentlyContinue
-if($recovery -and @($recovery.Actions | Where-Object {$_.Arguments -eq ('-NoProfile -NonInteractive -File "'+(Join-Path $env:ProgramFiles 'Sentinel/scripts/dns-guardian.ps1')+'"')}).Count){
+if($recovery -and @($recovery.Actions).Count -eq 1 -and $recovery.Actions[0].Arguments -in $guardianArguments){
  Stop-ScheduledTask -TaskName SentinelDnsRecovery
  Unregister-ScheduledTask -TaskName SentinelDnsRecovery -Confirm:$false
 }

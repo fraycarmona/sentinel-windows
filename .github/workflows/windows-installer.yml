@@ -1,0 +1,94 @@
+name: Instalador Windows
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compilar, probar y publicar los binarios autocontenidos
+        shell: powershell
+        run: .\scripts\build.ps1 -Publish -InstallerPayload
+      - name: Compilar Sentinel-Setup.exe
+        shell: powershell
+        run: |
+          $version = '0.5.0'
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -notmatch '^v([0-9]+\.[0-9]+\.[0-9]+)$') {
+              throw 'Use una etiqueta con el formato vMAJOR.MINOR.PATCH.'
+            }
+            $version = $Matches[1]
+          }
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe' -OutFile $installer
+          $sha = (Get-FileHash -Algorithm SHA256 -Path $installer).Hash
+          if ($sha -ine '8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0') {
+            throw 'SHA-256 incorrecto para el compilador Inno Setup.'
+          }
+          $inno = Join-Path $env:RUNNER_TEMP 'Inno'
+          $process = Start-Process $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=""$inno""" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Instalación de Inno Setup: $($process.ExitCode)" }
+          & "$inno\ISCC.exe" "/DSentinelVersion=$version" .\installer\Sentinel.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC: $LASTEXITCODE" }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Sentinel-Setup
+          path: dist/Installer/Sentinel-Setup.exe
+          if-no-files-found: error
+
+  windows-11:
+    name: Instalación en VM Windows 11 ARM64
+    needs: build
+    runs-on: windows-11-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: Sentinel-Setup
+          path: ${{ runner.temp }}\sentinel-download
+      - name: Verificar activación, espera y restauración
+        shell: powershell
+        run: .\installer\test-setup.ps1 -Setup "$env:RUNNER_TEMP\sentinel-download\Sentinel-Setup.exe"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Instalacion-Windows-11
+          path: ${{ runner.temp }}/sentinel-test/*.log
+
+  release:
+    needs: windows-11
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: sentinel-release-${{ github.ref }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Sentinel-Setup
+      - name: Publicar el ejecutable verificado
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null; then
+            gh release upload "$TAG" Sentinel-Setup.exe
+          else
+            gh release create "$TAG" Sentinel-Setup.exe --verify-tag --generate-notes
+          fi

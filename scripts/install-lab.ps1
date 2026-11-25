@@ -45,8 +45,13 @@ if($Packaged){
 [IO.File]::WriteAllText("$data/lock.json",'null')
 [IO.File]::WriteAllText("$data/owner.txt",[Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
 Copy-Item "$source/config/rules.json" "$data/rules.json"
-& sc.exe create Sentinel binPath= ('"'+$target+'\Service\Sentinel.Service.exe"') start= auto obj= 'NT AUTHORITY\LocalService' DisplayName= 'SENTINEL — protección DNS'
-if($LASTEXITCODE){throw 'No se pudo crear el servicio. Conserve los archivos para diagnóstico.'}
+$servicePath=Join-Path $target 'Service\Sentinel.Service.exe'
+# Preserve the quotes passed to SCM through the Windows native argument parser.
+$arguments='create Sentinel binPath= "\"'+$servicePath+'\"" start= auto obj= "NT AUTHORITY\LocalService" DisplayName= "SENTINEL - protección DNS"'
+$serviceProcess=Start-Process -FilePath "$env:WINDIR\System32\sc.exe" -ArgumentList $arguments -NoNewWindow -Wait -PassThru
+if($serviceProcess.ExitCode){throw 'No se pudo crear el servicio. Conserve los archivos para diagnóstico.'}
+$imagePath=(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\Sentinel').ImagePath
+if($imagePath -ine ('"'+$servicePath+'"')){throw 'La ruta del servicio no se registró entre comillas.'}
 & sc.exe description Sentinel 'Resolvedor DNS voluntario. Recuperación documentada en Program Files\Sentinel\docs.'
 if($LASTEXITCODE){throw 'No se pudo describir el servicio.'}
 & sc.exe failure Sentinel reset= 86400 actions= restart/10000/restart/30000/restart/60000

@@ -20,7 +20,7 @@ try{
   Clear-DnsClientCache;return
  }
  if((Get-Service Sentinel).Status -ne 'Running' -or !(Test-SentinelFilteredResolver)){throw 'El servicio local debe superar la prueba de filtrado.'}
- $rows=if(Test-Path -LiteralPath $journal){Get-Content -LiteralPath $journal -Raw | ConvertFrom-Json}else{@()}
+ $rows=@(if(Test-Path -LiteralPath $journal){Get-Content -LiteralPath $journal -Raw | ConvertFrom-Json})
  foreach($binding in Get-SentinelDnsAdapterFamilies){
   if(@($rows | Where-Object {$_.Guid -eq $binding.Guid -and $_.Family -eq $binding.Family}).Count){continue}
   $r=[pscustomobject]@{Guid=$binding.Guid;Family=$binding.Family;Static='';Loop=$(if($binding.Family -eq 'IPv4'){'127.0.0.1'}else{'::1'});Done=$false}

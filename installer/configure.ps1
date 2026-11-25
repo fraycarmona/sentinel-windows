@@ -10,7 +10,8 @@ $serviceKey='HKLM:\SYSTEM\CurrentControlSet\Services\Sentinel'
 
 function Assert-PackagedService {
     $image=(Get-ItemProperty -LiteralPath $serviceKey).ImagePath
-    if($image -ine ('"'+(Join-Path $target 'Service\Sentinel.Service.exe')+'"')){
+    $servicePath=Join-Path $target 'Service\Sentinel.Service.exe'
+    if($image -ine ('"'+$servicePath+'"') -and $image -ine $servicePath){
         throw 'El servicio no pertenece a este instalador.'
     }
 }

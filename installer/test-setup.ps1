@@ -67,7 +67,10 @@ try{
 
     $service=Get-CimInstance Win32_Service -Filter "Name='Sentinel'"
     if($service.StartMode -ne 'Auto' -or $service.State -ne 'Running' -or
-        $service.StartName -notmatch 'LocalService$'){throw 'Servicio SCM incorrecto.'}
+        $service.StartName -notmatch 'LocalService$' -or
+        $service.PathName -ine ('"'+(Join-Path $app 'Service\Sentinel.Service.exe')+'"')){
+        throw 'Servicio SCM incorrecto.'
+    }
     $task=Get-ScheduledTask -TaskName $guardian
     if($task.Triggers.CimClass.CimClassName -ne 'MSFT_TaskBootTrigger' -or
         $task.Principal.UserId -notin 'SYSTEM','S-1-5-18','NT AUTHORITY\SYSTEM'){

@@ -126,6 +126,14 @@ begin
   Result := ActivationExitCode;
 end;
 
+function InitializeUninstall: Boolean;
+begin
+  Result := not CheckForMutexes('Global\SentinelSetup');
+  if not Result then
+    SuppressibleMsgBox('Espera a que finalice la instalación de SENTINEL.',
+      mbError, MB_OK, IDOK);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ExitCode: Integer;

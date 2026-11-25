@@ -20,7 +20,13 @@ try{
   Clear-DnsClientCache;return
  }
  if((Get-Service Sentinel).Status -ne 'Running' -or !(Test-SentinelFilteredResolver)){throw 'El servicio local debe superar la prueba de filtrado.'}
- $rows=@(if(Test-Path -LiteralPath $journal){Get-Content -LiteralPath $journal -Raw | ConvertFrom-Json})
+ $rows=@()
+ if(Test-Path -LiteralPath $journal){
+  $saved=Get-Content -LiteralPath $journal -Raw | ConvertFrom-Json
+  # Windows PowerShell and PowerShell emit JSON arrays differently.
+  foreach($row in $saved){$rows+=$row}
+ }
+ $previousCount=$rows.Count
  foreach($binding in Get-SentinelDnsAdapterFamilies){
   if(@($rows | Where-Object {$_.Guid -eq $binding.Guid -and $_.Family -eq $binding.Family}).Count){continue}
   $r=[pscustomobject]@{Guid=$binding.Guid;Family=$binding.Family;Static='';Loop=$(if($binding.Family -eq 'IPv4'){'127.0.0.1'}else{'::1'});Done=$false}
@@ -29,7 +35,7 @@ try{
   $rows+=$r
  }
  if(!$rows.Count){throw 'No hay adaptadores físicos activos compatibles.'}
- Save-SentinelNetworkJournal $journal $rows
+ if($rows.Count -ne $previousCount){Save-SentinelNetworkJournal $journal $rows}
  Set-SentinelNetworkMode Local $journal $backend
  Clear-DnsClientCache
 }finally{$lease.Dispose()}

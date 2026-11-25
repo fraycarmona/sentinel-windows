@@ -131,11 +131,14 @@ try{
         throw 'No se canceló la solicitud.'
     }
     Write-Host 'Activación, configuración de arranque y retirada anticipada verificadas.'
+}catch{
+    Write-Host "Error en la prueba de instalación: $($_.Exception.Message)"
+    throw
 }finally{
     if($panel -and !$panel.HasExited){Stop-Process -InputObject $panel}
     foreach($name in 'setup-error.txt','guardian-status.txt','runtime\service-error.txt'){
         $path=Join-Path $data $name
-        if(Test-Path $path){Get-Content $path | Out-File (Join-Path $evidence "$([IO.Path]::GetFileNameWithoutExtension($name)).log")}
+        if(Test-Path $path){Get-Content -Encoding UTF8 $path | Out-File (Join-Path $evidence "$([IO.Path]::GetFileNameWithoutExtension($name)).log")}
     }
     if((Test-Path "$data\setup-owned") -and (Test-Path "$app\scripts\remove-lab.ps1")){
         & "$app\scripts\remove-lab.ps1" -Emergency -AcceptLabChanges
